@@ -1,0 +1,244 @@
+= Electronic components cooling
+:feelpp: Feel++
+:stem: latexmath
+:toc: left
+:toclevels: 3
+
+== Benchmark
+
+This test case has been proposed by Annabelle Le-Hyaric and Michel
+Fouquembergh from Airbus.
+
+=== Problem description
+
+We consider a 2D model representative of the neighboring of an electronic component submitted to a cooling air flow.
+It is described by four geometrical domains in stem:[\mathbb{R}^2] named stem:[\Omega_i,i=1,2,3,4], see figure below.
+We suppose the velocity stem:[\mathbf{v}] is known in each domain --- for instance in stem:[\Omega_4] it is the solution of previous Navier-Stokes computations.  ---
+The temperature stem:[T] of the domain stem:[\Omega = \cup_{i=1}^4 \Omega_i] is then solution of
+heat transfer equation :
+
+[stem]
+++++
+  \rho C_i \Big( \frac{\partial T}{\partial t} + \mathbf{v} \cdot \nabla T \Big)  - \nabla \cdot \left( k_i \nabla T \right) = Q_i,\quad i=1,2,3,4
+++++
+
+where stem:[t] is the time and in each sub-domain stem:[\Omega_i], stem:[\rho C_i] is the volumic thermal capacity, stem:[k_i] is thermal conductivity and stem:[Q_i] is a volumic heat dissipated.
+
+[[img-geometry]]
+image::OpusGeometry.png[caption="Figure 1: ", title="Geometry of the Opus Benchmark.", alt="Opus Geometry", width="300"]
+
+
+NOTE: One should notice that the convection term in heat transfer equation may lead to spatial oscillations which can be overcome by Petrov-Galerkin type or continuous interior penalty stabilization techniques.
+
+
+Integrated circuits (IC) (domains stem:[\Omega_1] and stem:[\Omega_2] ) are
+respectively soldered on PCB at stem:[\mathbf{x1}=(e_{\mathrm{PCB}},h_1)] and stem:[\mathbf{x_2}=(e_{\mathrm{PCB}}, h_2)].
+They are considered as rectangles with width stem:[e_{\mathrm{IC}}] and height stem:[h_{\mathrm{IC}}].
+The printed circuit board (stem:[\mathrm{PCB}]) is a rectangle stem:[\Omega_3] of width stem:[e_{\mathrm{PCB}}] and height stem:[h_{\mathrm{PCB}}].
+The air(stem:[\mathrm{Air}]) is flowing along the stem:[\mathrm{PCB}] in domain stem:[\Omega_4].
+
+Speed in the air channel stem:[\Omega_4] is supposed to have a parabolic profile function of stem:[x] coordinate.
+Its expression is simplified as follows (notice that stem:[\mathbf{v}] is normally solution of Navier-Stokes equations; the resulting temperature and velocity fields should be quite different from that simplified model), we have for all stem:[0 \leq y \leq h_{PCB}]
+
+[stem]
+++++
+    \begin{array}[c]{rl}
+    e_{Pcb} + e_{Ic} \leq x \leq e_{Pcb} + e_a, & \displaystyle \mathbf{v} = \frac{3}{2 (e_a-e_{Ic})}\ D\ \Big( 1 - \Big( \frac{x - ( \frac{e_a+e_{Ic}}{2} + e_{Pcb})}{\frac{(e_a-e_{Ic})}{2}} \Big)^2 \Big)\ f(t)\ \mathbf{y}\\
+    e_{Pcb}  \leq x \leq e_{Pcb} + e_{Ic}, & \mathbf{v} = 0
+  \end{array}
+++++
+where stem:[f] is a function of time modelling the starting of the stem:[\mathrm{PCB}] ventilation, i.e.
+[stem]
+++++
+  f(t) = 1-\exp(-\frac{t}{3}),
+++++
+
+stem:[D] is the air flow rate, see table below and stem:[\mathbf{y}=(0, 1)^T] is the unit vector along the stem:[y] axis.
+A quick verification shows that
+
+[stem]
+++++
+  \int_{\Gamma_4 \cap \Omega_4} \mathbf{v} \cdot \mathbf{n} = \int_{\Gamma_4 \cap \Omega_4} v_y = D
+++++
+
+
+The medium velocity stem:[\mathbf{v}_i = \mathbf{0}, i=1,2,3] in  the solid domains stem:[\Omega_i, i=1,2,3].
+
+
+stem:[\mathrm{IC}]s dissipate heat, we have respectively
+[stem]
+++++
+  \begin{array}[c]{rl}
+    Q_1 &= Q \big( 1 - \exp(-t) \big)\quad \text{ in } \Omega_1\\
+    Q_2 &= Q \big( 1 - \exp(-t) \big)\quad \text{ in } \Omega_2\\
+  \end{array}
+++++
+where stem:[Q] is defined in table below.
+
+
+We shall denote  stem:[\mathbf{n}_{|{\Omega_i}} = \mathbf{n}_i] denotes the unit outward normal to
+stem:[\Omega_i] and stem:[\mathbf{n}_{|{\Omega_j}} = \mathbf{n}_j] denotes the unit outward normal to stem:[\Omega_j].
+
+=== Boundary conditions
+
+We set
+
+* on stem:[\Gamma_3 \cap \Omega_3], a zero flux (Neumann-like) condition
+[stem]
+++++
+  -k_3\ \nabla T \cdot \mathbf{n}_3\ =\ 0;
+++++
+
+* on stem:[\Gamma_3 \cap \Omega_4], a zero flux (Robin-like) condition
+[stem]
+++++
+    (-k_4\ \nabla T + \rho C_4 T  \mathbf{v} ) \cdot \mathbf{n}_4\ =\ 0;
+++++
+
+* on stem:[\Gamma_4, (0 \leq x \leq e_\mathrm{PCB}+e_a, y=0)] the temperature is set (Dirichlet condition)
+[stem]
+++++
+  T\ = T_0;
+++++
+
+* between stem:[\Gamma_1] and stem:[\Gamma_2], periodic conditions
+[stem]
+++++
+  \begin{array}{rl}
+  T_{\big|\mathbf{x} = 0} &= T_{\big|\mathbf{x} = e_{Pcb} + e_{a}} \\
+  -k_3\ \nabla T \cdot \mathbf{n}_{3_{\big|\mathbf{x} = 0}} &= k_4\ \nabla T \cdot \mathbf{n}_4{_{\big|\mathbf{x} = e_{Pcb} + e_{a}}};
+\end{array}
+++++
+
+* at interfaces between the stem:[\mathrm{IC}]s and stem:[\mathrm{PCB}], there is a thermal contact conductance:
+[stem]
+++++
+\begin{array}{rl}
+  -k_1\ \nabla T \cdot \mathbf{n}_1 - k_3\ \nabla T \cdot \mathbf{n}_3 = r_{13}\big( T_{\partial \Omega_1} - T_{\partial \Omega_3} \big)\\
+  -k_2\ \nabla T \cdot \mathbf{n}_2 - k_3\ \nabla T \cdot \mathbf{n}_3 = r_{23}\big( T_{\partial \Omega_2} - T_{\partial \Omega_3} \big);\\
+\end{array}
+++++
+
+* on other internal boundaries, the coontinuity of the heat
+flux and temperature, on stem:[\Gamma_{ij} = \Omega_i \cap \Omega_j \neq \emptyset]
+[stem]
+++++
+\begin{array}{rl}
+  T_i &= T_j \\
+  k_i\ \nabla T \cdot \mathbf{n}_i &= -k_j\ \nabla T \cdot \mathbf{n}_j.
+\end{array}
+++++
+
+
+
+
+=== Initial condition
+
+At stem:[t=0s], we set stem:[T = T_0].
+
+=== Inputs
+
+The table  displays the various fixed and variables parameters of this test-case.
+
+|===
+| Name | Description | Nominal Value | Range | Units 
+
+| stem:[t] | time | | stem:[[0, 1500]] | stem:[s] 
+|stem:[Q] | heat source | stem:[10^{6}] | stem:[[0, 10^{6}]] | stem:[W \cdot m^{-3}] 
+
+| stem:[k_1 = k_2 =  k_{IC}] | thermal conductivity | stem:[2] | stem:[[0. 2,150 ]] | stem:[W \cdot m^{-1} \cdot K^{-1}] 
+| stem:[r_{13} = r_{23} = r] | thermal conductance | stem:[100] | stem:[[10^{-1},10^{2} ]] | stem:[W \cdot m^{-2} \cdot K^{-1}] +
+| stem:[\rho C_{IC}] | heat capacity | stem:[1. 4 \cdot 10^{6}]| |stem:[J \cdot m^{-3} \cdot K^{-1}] +
+| stem:[e_{IC}] | thickness | stem:[2\cdot 10^{-3}] | |stem:[m] +
+| stem:[h_{IC} = L_{IC}] | height | stem:[2\cdot 10^{-2}] | |stem:[m] +
+| stem:[h_{1}] | height | stem:[2\cdot 10^{-2}] | |stem:[m] +
+| stem:[h_{2}] | height | stem:[7\cdot 10^{-2}] | |stem:[m] +
+ +
+ +
+| stem:[k_3 =  k_{PCB}] | thermal conductivity | stem:[0. 2] | | stem:[W \cdot m^{-1} \cdot K^{-1}] +
+| stem:[\rho C_{3}] | heat capacity | stem:[2 \cdot 10^{6}]| |stem:[J \cdot m^{-3} \cdot K^{-1}] +
+| stem:[e_{PCB}] | thickness | stem:[2\cdot 10^{-3}] | |stem:[m] +
+| stem:[h_{PCB}] | height | stem:[13\cdot 10^{-2}] | |stem:[m] +
+ +
+ +
+| stem:[T_0] | Inflow temperature | stem:[300] | | stem:[K] +
+| stem:[D] | Inflow rate | stem:[7\cdot 10^{-3}] | stem:[[5 \cdot 10^{-4} ,10^{-2}]] | stem:[m^2 \cdot s^{-1}] +
+| stem:[k_4 ] | thermal conductivity | stem:[3 \cdot 10^{-2}] | | stem:[W \cdot m^{-1} \cdot K^{-1}] +
+| stem:[\rho C_{4}] | heat capacity | stem:[1100]| | stem:[J \cdot m^{-3} \cdot K^{-1}] +
+| stem:[e_{a}] | thickness | stem:[4\cdot 10^{-3}] | stem:[[2. 5 \cdot 10^{-3} , 5 \cdot 10^{-2}]] | stem:[m] +
+
+|===
+
+[[sec:outputs]]
+=== Outputs
+
+The outputs are
+
+the mean temperature stem:[s_1(\mu)] of the hottest IC::
+[stem]
+++++
+  s_1(\mu) = \frac{1}{e_{IC} h_{IC}} \int_{\Omega_2} T
+++++
+
+mean temperature stem:[s_2(\mu)] of the air at the outlet::
+[stem]
+++++
+    s_2(\mu) = \frac{1}{e_{a}} \int_{\Omega_4 \cap \Gamma_3 } T
+++++
+both depends on the solution of and are dependent on the parameter set stem:[\mu].
+
+We need to monitor stem:[s_1(\mu)] and stem:[s_2(\mu)] because stem:[s_1(\mu)] is the hottest part of the model and the IC can’t have a temperature above stem:[340K].
+stem:[s_2(\mu)] is the outlet of the air and in an industrial system we can have others components behind this outlet.
+So the temperature of the air doesn’t have to be high to not interfere the proper functioning of these.
+
+
+[[sec:refr-de-comp]]
+== Projet : Refroidissement de composants électroniques
+
+Nous allons considérer le refroissement de composants électroniques comme application de l’ensemble des
+
+[[géométrie-et-maillage]]
+=== Géométrie et Maillage
+
+Dans un premier temps on s’intéresse à la géométrie et au maillage
+
+* décrire votre stratégie pour la génération du maillage, commenter votre code
+* montrer différentes configurations géométriques en faisant varier stem:[e_a] pour trois valeurs (minimum, maximum et moyenne)
+* décrire la facon dont vous traitez les matériaux et les propriétés physiques et commenter votre code. Vous présenterez des graphiques des propriétés physiques (eg. la conductivité thermique stem:[k] ) avec {feelpp}
+
+[[cas-stationnaire-sans-convection]]
+=== Cas stationnaire sans convection
+
+On se place dans la configuration nominale du cas test. Nous considérons le cas stationnaire et une vitesse de convection nulle.
+
+* Écrire la formulation variationnelle du problème
+* Résoudre, afficher le champs de température et donner les températures stem:[s_1] et stem:[s_2].
+* Est il nécessaire à votre avis de souffler de l’air pour refroidir les composants ?
+* Modifier les valeurs des conductivités thermiques stem:[k_{IC}] et prendre les valeurs extrêmes. Commentez les résultats.
+
+[[cas-stationnaire-avec-convection]]
+=== Cas stationnaire avec convection
+
+On rajoute le terme de convection de type poiseuille
+
+* Écrire la formulation variationnelle du problème
+* Résoudre pour trois valeurs de stem:[D] (minimum, maximum et moyenne), afficher la carte de température et donner les températures stem:[s_1] et stem:[s_2]. Commenter les résultats.
+* les processeurs ne fonctionnent plus correctement à partir de 50C, fonctionnent ils correctionnent pour toutes les valeurs de stem:[D] précédentes ?
+
+[[cas-transitoire]]
+=== Cas transitoire
+
+On s’intéresse à présent au cas transitoire
+
+* Écrire la formulation variationnelle et votre choix de discretisation temporelle
+* Résoudre pour trois valeurs de stem:[D] (minimum, maximum et moyenne), afficher la carte de température à différents temps et donner les graphes des températures stem:[s_1] et stem:[s_2] en fonction du temps Commenter les résultats.
+* les processeurs ne fonctionnent plus correctement à partir de 50C, fonctionnent ils correctionnent pour toutes les valeurs de stem:[D] précédentes ? si non à partir de quel temps ce n’est plus le cas ?
+
+[[écoulement-de-navier-stokes]]
+=== Écoulement de Navier-Stokes
+
+On s’intéresse à présent à un modèle plus précis pour l’écoulement de l’air, les équations de Navier-Stokes. Vous ferez attention aux problèmes éventuels liés à la convection dominante.
+
+* Écrire les équations de Navier-Stokes incompressibles et la formulation variationnelle associée.
+* Résoudre le problème de mécanique des fluides dans l’air pour les trois valeurs de stem:[D] précédentes et comparer les écoulements avec celui du profil de Poiseuille
+* Coupler les équations de Navier-Stokes avec celle de la température. Comparer les résultats avec le cas Poiseuille au temps final pour les 3 valeurs de stem:[D]
