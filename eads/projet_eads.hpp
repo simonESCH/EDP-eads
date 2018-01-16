@@ -99,7 +99,7 @@ void Projet::run_static()
                     ); 
         else
         {//avec equation des fluides
-            auto flowToConv= Opinterpolation(
+            auto flowToConv= opinterpolation(
                     _domainSpace= m_ns.fluid.element<0>.functionSpace(),
                     _imageSpace= m_heat.beta.functionSpace()
                     );
@@ -125,10 +125,10 @@ void Projet::run_static()
 
     expCase->save();
     Feel::cout
-        << "temperature of IC1 : " << m_heat.get_heat_IC1() << "\n"
-        << "temperature of IC2 : " << m_heat.get_heat_IC2() << "\n"
-        << "temperature of out : " << m_heat.get_heat_out() << "\n"
-        << "     L(u_sol)      : " << m_heat.get_error_Lu() << "\n";
+        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << "\n"
+        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << "\n"
+        << "|> temperature of out : " << m_heat.get_heat_out() << "\n"
+        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "\n";
 }
 
 
@@ -152,33 +152,100 @@ void Projet::run_dynamic()
         << std::setw(15) << "temp_IC2"
         << std::setw(15) << "temp_out";
 
-
-
-    // initialisation des variables
-    // temporaire et les formes bilineaires et lineaires
-
-
+    auto Q= expr(soption("Proc.Q"));
     double dt= doption("Time.dt");
     double Tfinal= doption("Time.Tfinal");
-    for( double t= 0; t<Tfinal,t+= dt)
-    {
-        // REFLEXION comment faire pour eviter le maximum de declarer des objets tel que form et ...
 
-        ostr_heat << std::scientific
-            << sdt::setw(15) << t
-            << std::setw(15) << m_heat.get_heat_IC1()
-            << std::setw(15) << m_heat.get_heat_IC2()
-            << std::setw(15) << m_heat.get_heat_out();
+
+    // cas du modele sans refroidissement
+    if(modele == modele0)
+    {
+        for(double t= 0, t<Tfinal; t+= dt)
+        {
+            Q.setParameterValue({{"t",t}});
+            m_heat.run_step(Q);
+
+            ostr_heat << std::scientific
+                << sdt::setw(15) << t
+                << std::setw(15) << m_heat.get_heat_IC1()
+                << std::setw(15) << m_heat.get_heat_IC2()
+                << std::setw(15) << m_heat.get_heat_out();
+        }
+    }
+    else
+    {
+        auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
+
+        // cas du modele de refroidissement par un profil de poisseuille constant
+        // sur la longueur
+        if(modele == modele1)
+        {
+            for(double t = 0; t<Tfinal; t+=dt)
+            {
+                Q.setParameterValue({{"t",t}});
+                beta.setParameterValue({{"t",t}});
+
+                m_heat.beta.on(
+                        _range= markedelement( m_heat.m_mesh, "AIR"),
+                        _expr= beta
+                        );
+                m_heat.run_step(Q);
+
+                ostr_heat << std::scientific
+                    << sdt::setw(15) << t
+                    << std::setw(15) << m_heat.get_heat_IC1()
+                    << std::setw(15) << m_heat.get_heat_IC2()
+                    << std::setw(15) << m_heat.get_heat_out();
+            }
+        }
+        else
+        {
+            // les derniers modeles avec les equations de fluide
+            auto flowToConv= opinterpolation( 
+                    _domainSpace= m_ns.fluid.element<0>.functionSpace(),
+                    _imageSpace= m_heat.beta.functionSpace()
+                    );
+            for(double t = 0; t<Tfinal; t+=dt)
+            {
+                Q.setParameterValue({{"t",t}});
+                beta.setParameterValue({{"t",t}});
+                m_ns.run_step(beta);
+                flowToConv.apply(
+                        m_ns.fluidt.element<0>(), 
+                        m_heat.ut
+                        );
+                m_heat.run_step(Q);
+
+                ostr_heat << std::scientific
+                    << sdt::setw(15) << t
+                    << std::setw(15) << m_heat.get_heat_IC1()
+                    << std::setw(15) << m_heat.get_heat_IC2()
+                    << std::setw(15) << m_heat.get_heat_out();
+            }
+        }
     }
 
     Feel::cout
-        << "temperature of IC1 : " << m_heat.get_heat_IC1() << "\n"
-        << "temperature of IC2 : " << m_heat.get_heat_IC2() << "\n"
-        << "temperature of out : " << m_heat.get_heat_out() << "\n"
-        << "     L(u_sol)      : " << m_heat.get_error_Lu() << "\n";
+        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << "\n"
+        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << "\n"
+        << "|> temperature of out : " << m_heat.get_heat_out() << "\n"
+        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "\n";
 
+
+    std::fstream file("heat_evolution.dat",std::ios::out|std::ios::trunc);
+    if(file)
+    {
+        Feel::cout<<"the evolution of the heat is in the file :"
+            <<"heat_evolution.dat"<<"\n";
+        file<<ostr_heat.str();
+        file.close();
+    }
+    else
+        Feel::cerr<<"le fichier n'a pas pu s'ouvrir\n";
+    file<<ostr_heat.str;
 
 }
+
 
 void Projet::affichage()
 {
@@ -204,7 +271,7 @@ void Projet::affichage()
         << "\n\t|Tmax   : " << doption("Time.Tfinal") << " sec"
         << "\n\t|dt     : " << doption("Time.dt") << " sec"
         << "\n\t|===================================== "
-        << "\n\t|stab   : " << boption("Modele.GaLS")
+        << "\n\t|stab   : " <<std::boolalpha<< boption("Modele.GaLS")
         << "\n\t|save   : " << soption("Exporter.save");
 
 }
