@@ -13,6 +13,8 @@
 //#include <string>
 #include "md_commun.hpp"
 
+#define MAX_LOOP_PICARD 10000
+
 using namespace Feel;
 using namespace vf;
 
@@ -73,7 +75,7 @@ class NavierStokes
     double rho;
 
     // modele du modele
-    Modele_type modele=modele0;
+    Modele_type modele= modele0;
 
 
     // m_mesh
@@ -119,7 +121,7 @@ class NavierStokes
         void run(myexpr_type D);
 
     template<typename B, typename L, typename E>
-        void resolve_fluid(B & bilinear, L & linear, E & flow, double error=1e-3);
+        void resolve_fluid(B & bilinear, L & linear, E & flow, double error= 1e-3);
 
     template<typename E>
         void init_beta(E expr);
@@ -143,18 +145,23 @@ NavierStokes::NavierStokes(mesh_ptrtype i_mesh,Modele_type mod)
 
     fluid = Vph->element();
     fluidt = Vph->element();
-    //fluid_tmp = Vph->element();
+    fluid_tmp = Vph->element();
 
-    backend_fluid=backend(_name="backend_fluid");
-    matrix_fluid=backend_fluid->newMatrix(Vph,Vph);
-    vector_fluid=backend_fluid->newVector(Vph);
+    fluidt.on(
+    _range= elements(m_mesh),
+    _expr= cst(0.)
+    );
+
+    backend_fluid= backend(_name= "backend_fluid");
+    matrix_fluid= backend_fluid->newMatrix(Vph,Vph);
+    vector_fluid= backend_fluid->newVector(Vph);
 
 }
 
 
 
 
-// function of the class NavierStokes============================================
+// function of the class NavierStokes= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
 
 
 
@@ -168,7 +175,7 @@ void NavierStokes::build_fluid_static()
     tic();
     matrix_fluid->zero();
     vector_fluid->zero();
-    auto bilinear= form2(_test= Vph, _trial= Vph, _matrix=matrix_fluid);
+    auto bilinear= form2(_test= Vph, _trial= Vph, _matrix= matrix_fluid);
 
     auto v= fluid.template element<0>();
     auto u= fluidt.template element<0>();
@@ -178,8 +185,8 @@ void NavierStokes::build_fluid_static()
     auto mat_ID= eye<FEELPP_DIM, FEELPP_DIM>();
     double mu= doption("Air.mu");
     /// \f$ \bigl(\nabla u -pI\!d\bigl)v\cdot n\f$ is the edge's term
-    //auto deft=mu*sym(gradt(u))-idt(p)*mat_ID;
-    //auto deft=mu*gradt(vt)-idt(pt)*mat_ID;
+    //auto deft= mu*sym(gradt(u))-idt(p)*mat_ID;
+    //auto deft= mu*gradt(vt)-idt(pt)*mat_ID;
 
     //auto stokes_expr= inner( 2* mu* deft - idt(p)*mat_ID, grad(v))+
     //                    id(q)* divt(u);
@@ -225,21 +232,38 @@ void NavierStokes::build_fluid_dynamic_bilinear(bilinear_type & bilinear, veloci
     template<typename bilinear_type, typename linear_type, typename expr_type>
 void NavierStokes::resolve_fluid(bilinear_type & bilinear, linear_type & linear, expr_type & flow,double error)
 {
-    auto bilinear_static=form2(_test=Vph,_trial=Vph,_matrix=matrix_fluid);
-    auto linear_static=form1(_test=Vph,_vector=vector_fluid);
+    auto bilinear_static= form2(_test= Vph,_trial= Vph,_matrix= matrix_fluid);
+    auto linear_static= form1(_test= Vph,_vector= vector_fluid);
     
-    do
-    {
-    bilinear=bilinear;
-    linear=linear;
-
     auto v= fluid.element<0>();
     auto u= fluidt.element<0>();
+    auto u_tmp= fluidt.element<0>();
     auto q= fluid.element<1>();
     auto p= fluidt.element<1>();
+    double loop_err;
+    double cpt=0;
 
-    // a completer
-    } while(error<-100);
+    do
+    {
+        fluid_tmp= fluidt;
+        bilinear= bilinear;
+        linear= linear;
+
+        //REMPLISSAGE DE LA PARTIE DYNAMIQUE
+
+        bilinear.solve(
+                _solution= fluidt,
+                _rhs= linear
+                );
+
+        loop_err=normeL2(
+                _range= elements(m_mesh),
+                _expr= idv(fluidt)-idv(fluid_tmp)
+                );
+
+        cpt++;
+        // a completer
+    } while((error<loop_err)&&(cpt<MAX_LOOP_PICARD));
 }
 
 
@@ -262,7 +286,7 @@ void NavierStokes::resolve_fluid(bilinear_type & bilinear, linear_type & linear,
     template<typename myexpr_type>
 void NavierStokes::run(myexpr_type D)
 {
-    auto file=exporter(_mesh=m_mesh,_name="stokesSolve");
+    auto file= exporter(_mesh= m_mesh,_name= "stokesSolve");
     auto v= fluid.element<0>();
     auto u= fluidt.element<0>();
     auto q= fluid.element<1>();
@@ -274,8 +298,8 @@ void NavierStokes::run(myexpr_type D)
     //matrix_fluid->zero();
     //vector_fluid->zero();
 
-    auto bilinear= form2( _test= Vph, _trial= Vph, _matrix=matrix_fluid);
-    auto linear= form1( _test= Vph, _vector=vector_fluid);
+    auto bilinear= form2( _test= Vph, _trial= Vph, _matrix= matrix_fluid);
+    auto linear= form1( _test= Vph, _vector= vector_fluid);
 
     tic();
     bilinear+= on(//condition of Dirichlet in the edge 
