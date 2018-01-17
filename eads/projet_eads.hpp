@@ -55,21 +55,18 @@ Projet::Projet()
     tic();
     modele= init_modele();
     m_poiseuille= init_edges_in();
+    
+    affichage();//mis ici car, si erreur, pas attendre de faire mesh
+    
     m_mesh= loadMesh(_mesh= new M_type);
 
     // si le modele n'est pas aere ou sans l'equation de Stokes 
     // m_ns n'est pas initialise
     if((modele == modele2)||(modele == modele3))
-        m_ns= NavierStokes(mesh,modele);
+        m_ns= NavierStokes(mesh, modele);
     m_heat= Heat(mesh, modele);
     toc("init system");
 
-    affichage();
-    // choix du modele
-    // initialisation du profile de poiseuille
-    // creation du maillage
-    // initialisation de m_ns si le modele est ...
-    // initialisation de heat
 }
 
 void Projet::run()
@@ -83,44 +80,47 @@ void Projet::run()
 void Projet::run_static()
 {
     auto expCase= exporter(
-            _mesh= m_mesh,
+            _mesh= m_mesh, 
             _name= doption("Exporter.save")
             );
 
     auto Q= expr(soption("Proc.Q"));
-
+    
+    // estimation de la convection
     if(modele != modele0)
     {
-        auto beta= expr<FEELPP_DIM,1>(m_poiseuille);
+        auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
         if(modele == modele1)
             m_heat.beta.on(
-                    _range= markedelements(m_heat.m_mesh,"AIR"),
+                    _range= markedelements(m_heat.m_mesh, "AIR"), 
                     _expr= beta
                     ); 
         else
         {//avec equation des fluides
             auto flowToConv= opinterpolation(
-                    _domainSpace= m_ns.fluid.element<0>.functionSpace(),
+                    _domainSpace= m_ns.fluid.element<0>.functionSpace(), 
                     _imageSpace= m_heat.beta.functionSpace()
                     );
 
             m_ns.run(beta);
             flowToConv.apply(
-                    m_ns.fluidt.element<0>(),
+                    m_ns.fluidt.element<0>(), 
                     m_heat.beta
                     );
         }
+    }
 
-        m_heat.run(Q);
+    m_heat.run(Q);
 
-        expCase->add("heat",m_heat.ut);
-        if(modele == modele1)
-            expCase->add("convection", m_heat.beta);
-        else if(modele != modele0)
-        {
-            expCase->add("fluid_pressure", m_ns.fluid.element<1>());
-            expCase->add("fluid_velocity", m_ns.fluid.element<0>());
-        }
+    expCase->add("heat", m_heat.ut);
+
+    // ajout de la convection dans le .case
+    if(modele == modele1)
+        expCase->add("convection", m_heat.beta);
+    else if(modele != modele0)
+    {
+        expCase->add("fluid_pressure", m_ns.fluid.element<1>());
+        expCase->add("fluid_velocity", m_ns.fluid.element<0>());
     }
 
     expCase->save();
@@ -145,6 +145,7 @@ void Projet::run_static()
 
 void Projet::run_dynamic()
 {
+    // stockage des temperature au cour du temps
     std::ostringstream ostr_heat;
     ostr_heat
         << std::setw(15) << "time"
@@ -162,8 +163,8 @@ void Projet::run_dynamic()
     {
         for(double t= 0, t<Tfinal; t+= dt)
         {
-            Q.setParameterValue({{"t",t}});
-            m_heat.run_step(Q);
+            Q.setParameterValue({{"t", t}});
+            m_heat.run_step(Q, dt);
 
             ostr_heat << std::scientific
                 << sdt::setw(15) << t
@@ -182,14 +183,14 @@ void Projet::run_dynamic()
         {
             for(double t = 0; t<Tfinal; t+=dt)
             {
-                Q.setParameterValue({{"t",t}});
-                beta.setParameterValue({{"t",t}});
+                Q.setParameterValue({{"t", t}});
+                beta.setParameterValue({{"t", t}});
 
                 m_heat.beta.on(
-                        _range= markedelement( m_heat.m_mesh, "AIR"),
+                        _range= markedelement( m_heat.m_mesh, "AIR"), 
                         _expr= beta
                         );
-                m_heat.run_step(Q);
+                m_heat.run_step(Q, dt);
 
                 ostr_heat << std::scientific
                     << sdt::setw(15) << t
@@ -202,19 +203,19 @@ void Projet::run_dynamic()
         {
             // les derniers modeles avec les equations de fluide
             auto flowToConv= opinterpolation( 
-                    _domainSpace= m_ns.fluid.element<0>.functionSpace(),
+                    _domainSpace= m_ns.fluid.element<0>.functionSpace(), 
                     _imageSpace= m_heat.beta.functionSpace()
                     );
             for(double t = 0; t<Tfinal; t+=dt)
             {
-                Q.setParameterValue({{"t",t}});
-                beta.setParameterValue({{"t",t}});
-                m_ns.run_step(beta);
+                Q.setParameterValue({{"t", t}});
+                beta.setParameterValue({{"t", t}});
+                m_ns.run_step(beta, dt);
                 flowToConv.apply(
                         m_ns.fluidt.element<0>(), 
                         m_heat.ut
                         );
-                m_heat.run_step(Q);
+                m_heat.run_step(Q, dt);
 
                 ostr_heat << std::scientific
                     << sdt::setw(15) << t
@@ -232,17 +233,17 @@ void Projet::run_dynamic()
         << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "\n";
 
 
-    std::fstream file("heat_evolution.dat",std::ios::out|std::ios::trunc);
+    std::fstream file("heat_evolution.dat", std::ios::out|std::ios::trunc);
     if(file)
     {
-        Feel::cout<<"the evolution of the heat is in the file :"
-            <<"heat_evolution.dat"<<"\n";
-        file<<ostr_heat.str();
+        Feel::cout << "the evolution of the heat is in the file :"
+            << "heat_evolution.dat" << "\n";
+        file << ostr_heat.str();
         file.close();
     }
     else
-        Feel::cerr<<"le fichier n'a pas pu s'ouvrir\n";
-    file<<ostr_heat.str;
+        Feel::cerr << "le fichier n'a pas pu s'ouvrir\n";
+    file << ostr_heat.str;
 
 }
 
@@ -271,7 +272,7 @@ void Projet::affichage()
         << "\n\t|Tmax   : " << doption("Time.Tfinal") << " sec"
         << "\n\t|dt     : " << doption("Time.dt") << " sec"
         << "\n\t|===================================== "
-        << "\n\t|stab   : " <<std::boolalpha<< boption("Modele.GaLS")
+        << "\n\t|stab   : " << std::boolalpha << boption("Modele.GaLS")
         << "\n\t|save   : " << soption("Exporter.save");
 
 }

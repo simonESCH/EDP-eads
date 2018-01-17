@@ -223,10 +223,10 @@ createGMSH()
         << "\n"
         << "// dimension of the motherboard( PCB)\n"
         << "hPCB = "<< doption("Geo.hPCB")<< ";//m\n"
-        << "ePCB = "<< doption("Geo.ePCB")<< "//m\n"
+        << "ePCB = "<< doption("Geo.ePCB")<< ";//m\n"
         << "\n"
         << "// dimension of the processor ( IC)\n"
-        << "hIC = "<< doption("Geo.hIC")<< "//m\n"
+        << "hIC = "<< doption("Geo.hIC")<< ";//m\n"
         << "eIC = "<< doption("Geo.eIC")<< ";//m\n"
         << "\n"
         << "// placement of the processor\n"
@@ -235,12 +235,12 @@ createGMSH()
         << "\n"
         << "//dimension of the areation( A)\n"
         << "eAIR = "<< doption("Geo.eAIR")<< ";//m\n"
-        << "Include \"projet.geo\";\n";
+        //<< "Include \"eads.geo\";\n";
         
         
         
-    std::ostringstream ostr_build("eads.geo");
-    ostr_build
+    //std::ostringstream ostr_build("eads.geo");
+    //ostr_build
         << desc->preamble()<< "\n"
         << "//______point__________________________________________\n"
         << "// corner of the motherboard\n"
@@ -315,7 +315,8 @@ createGMSH()
         << "Physical Surface(\"IC1\") = {29};//processor IC1\n"
         << "Physical Surface(\"IC2\") = {31};//processor IC2\n"
         << "Physical Surface(\"AIR\") = {33};//conduct of areation\n";
-    //Feel::cout<< "dimension de la geometrie:\n"<< ostr_desc.str()<< "\n";
+    
+    Feel::cout<< "dimension de la geometrie:\n"<< ostr_desc.str()<< "\n\n";
 #else
     Feel::cerr<< "le programme ne gere pas les dimensions autre que 2\n";
     exit();

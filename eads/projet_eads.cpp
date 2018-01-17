@@ -27,7 +27,7 @@ int main(int argc,char* argv[])
     affichage();
 
     tic();
-#if 0
+#if 1
     auto mesh=createGMSHMesh(
             _mesh= new Mesh<MyMesh_type>,
             _desc= createGMSH(),
