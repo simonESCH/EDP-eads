@@ -67,7 +67,7 @@ class Heat
 
 
     /// \enum modele_enum
-    /// \brief modele entre 4 modele different
+    /// \brief m_modele entre 4 m_modele different
     /// * modele0 : pas de convection du a l'air
     /// * modele1 : on suppose que le flux d'air suit un profile de poiseuille 
     /// * modele2 : on suppose que l'air suit les equations de modele2
@@ -78,8 +78,8 @@ class Heat
 
     //parametre
 
-    // modele du modele
-    Modele_type modele=modele0;
+    // m_modele du m_modele
+    Modele_type m_modele=modele0;
 
 
     // m_mesh
@@ -140,7 +140,12 @@ class Heat
     /// \fn Heat
     /// \brief constructor
     ///
+#if TEST_PROJET_HPP
+    Heat(){}
+    void init(mesh_ptrtype, Modele_type);
+#else
     Heat(mesh_ptrtype mesh, Modele_type mod);
+#endif
 
     template<typename E>
         void init_beta(E expr);
@@ -157,13 +162,48 @@ class Heat
 
 
 
+#if TEST_PROJET_HPP
+void Heat::init(mesh_ptrtype theMesh, Modele_type mod)
+{
+    m_modele=mod;
+    this->m_mesh= createSubmesh( theMesh, elements(theMesh));
+    init_param();
+    init_heat();
+}
 
-Heat::Heat(mesh_ptrtype theMesh,Modele_type mod):modele(mod)
+#else
+
+Heat::Heat(mesh_ptrtype theMesh,Modele_type mod):m_modele(mod)
 {
     this->m_mesh= createSubmesh( theMesh, elements(theMesh));
     init_param();
     init_heat();
 }
+#endif
+
+
+
+
+//    Heat & Heat::operator = (Heat & heat)
+//    {
+//        m_mesh=heat.m_mesh;
+//
+//        m_k= heat.m_k;
+//        m_rc= heat.m_rc;
+//        
+//        Th=heat.Th;
+//        Th_vect=heat.Th_vect;
+//        
+//        u=heat.u;
+//        ut=heat.ut;
+//        u_tmp=heat.u_tmp;
+//        beta=heat.beta;
+//
+//        backend_heat=heat.backend_heat;
+//        matrix_heat=heat.matrix_heat;
+//        vector_heat=heat.vector_heat;
+//
+//    }
 
 
 // function of the class Heat============================================
@@ -360,7 +400,7 @@ void Heat::build_heat_dynamic(bilinear_type & bilinear, linear_type & linear, my
             _expr= Q*id(u)
             );//heating of the processors
 
-    if( modele != modele0 )
+    if( m_modele != modele0 )
     {
         bilinear+= integrate(
                 _range= markedelements(m_mesh,"AIR"),
@@ -424,7 +464,7 @@ void Heat::run_step( myexpr_type Q, double dt)
     auto linear= form1( _test= Th);
 
     bilinear= bilinear_static;
-    build_heat_dynamic(bilinear, linear, dt, Q);
+    build_heat_dynamic(bilinear, linear, Q, dt);
     build_heat_diric_edge(bilinear, linear);
 
     toc("build heat");

@@ -20,10 +20,10 @@ using namespace vf;
 typedef Simplex<FEELPP_DIM> M_type;
 //typedef Feel::Expr
 
-class Projet:
+class Projet
 {
     //le but de cette classe sera d'initialiser les deux autres classes
-    // faire plusieur mode en fonction du modele 
+    // faire plusieur mode en fonction du m_modele 
     // PENSER A DEPLACER L'AFFICHAGE ICI
 
     Heat m_heat;
@@ -48,23 +48,28 @@ class Projet:
 
 
 
-Projet::Projet()
+Projet::Projet():m_heat(),m_ns()
 {
     Feel::cout << "initialisation\n";
 
     tic();
-    modele= init_modele();
-    m_poiseuille= init_edges_in();
+    m_modele= init_modele();
+    m_poiseuille= init_edge_in();
     
-    affichage();//mis ici car, si erreur, pas attendre de faire mesh
-    
-    m_mesh= loadMesh(_mesh= new M_type);
+    affichage();//mis ici car, si erreur, pas attendre de faire m_mesh
 
-    // si le modele n'est pas aere ou sans l'equation de Stokes 
+    m_mesh= createGMSHMesh(
+            _mesh= new Mesh<MyMesh_type>,
+            _desc=createGMSH()
+            );
+
+    // si le m_modele n'est pas aere ou sans l'equation de Stokes 
     // m_ns n'est pas initialise
-    if((modele == modele2)||(modele == modele3))
-        m_ns= NavierStokes(mesh, modele);
-    m_heat= Heat(mesh, modele);
+    if((m_modele == modele2)||(m_modele == modele3))
+        //m_ns= NavierStokes(m_mesh, m_modele);
+        m_ns.init(m_mesh, m_modele);
+    //m_heat= Heat(m_mesh, m_modele);
+    m_heat.init(m_mesh, m_modele);
     toc("init system");
 
 }
@@ -72,7 +77,8 @@ Projet::Projet()
 void Projet::run()
 {
     if(boption("Time.time"))
-        run_dynamic();
+        //run_dynamic();
+        Feel::cout<<"Work In Progress\n";
     else
         run_static();
 }
@@ -81,30 +87,30 @@ void Projet::run_static()
 {
     auto expCase= exporter(
             _mesh= m_mesh, 
-            _name= doption("Exporter.save")
+            _name= soption("Exporter.save")
             );
 
     auto Q= expr(soption("Proc.Q"));
-    
+
     // estimation de la convection
-    if(modele != modele0)
+    if(m_modele != modele0)
     {
         auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
-        if(modele == modele1)
+        if(m_modele == modele1)
             m_heat.beta.on(
                     _range= markedelements(m_heat.m_mesh, "AIR"), 
                     _expr= beta
                     ); 
         else
-        {//avec equation des fluides
-            auto flowToConv= opinterpolation(
-                    _domainSpace= m_ns.fluid.element<0>.functionSpace(), 
+        {//avec equation des m_fluides
+            auto flowToConv= opInterpolation(
+                    _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(), 
                     _imageSpace= m_heat.beta.functionSpace()
                     );
 
             m_ns.run(beta);
-            flowToConv.apply(
-                    m_ns.fluidt.element<0>(), 
+            flowToConv->apply(
+                    m_ns.m_fluidt.element<0>(), 
                     m_heat.beta
                     );
         }
@@ -115,12 +121,12 @@ void Projet::run_static()
     expCase->add("heat", m_heat.ut);
 
     // ajout de la convection dans le .case
-    if(modele == modele1)
+    if(m_modele == modele1)
         expCase->add("convection", m_heat.beta);
-    else if(modele != modele0)
+    else if(m_modele != modele0)
     {
-        expCase->add("fluid_pressure", m_ns.fluid.element<1>());
-        expCase->add("fluid_velocity", m_ns.fluid.element<0>());
+        expCase->add("m_fluid_pressure", m_ns.m_fluid.element<1>());
+        expCase->add("m_fluid_velocity", m_ns.m_fluid.element<0>());
     }
 
     expCase->save();
@@ -142,7 +148,7 @@ void Projet::run_static()
 
 
 
-
+#if 0
 void Projet::run_dynamic()
 {
     // stockage des temperature au cour du temps
@@ -158,16 +164,16 @@ void Projet::run_dynamic()
     double Tfinal= doption("Time.Tfinal");
 
 
-    // cas du modele sans refroidissement
-    if(modele == modele0)
+    // cas du m_modele sans refroidissement
+    if(m_modele == modele0)
     {
-        for(double t= 0, t<Tfinal; t+= dt)
+        for(double t= 0; t<Tfinal; t+= dt)
         {
-            Q.setParameterValue({{"t", t}});
+            Q.setParameterValues({{"t", t}});
             m_heat.run_step(Q, dt);
 
             ostr_heat << std::scientific
-                << sdt::setw(15) << t
+                << std::setw(15) << t
                 << std::setw(15) << m_heat.get_heat_IC1()
                 << std::setw(15) << m_heat.get_heat_IC2()
                 << std::setw(15) << m_heat.get_heat_out();
@@ -177,23 +183,23 @@ void Projet::run_dynamic()
     {
         auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
 
-        // cas du modele de refroidissement par un profil de poisseuille constant
+        // cas du m_modele de refroidissement par un profil de poisseuille constant
         // sur la longueur
-        if(modele == modele1)
+        if(m_modele == modele1)
         {
             for(double t = 0; t<Tfinal; t+=dt)
             {
-                Q.setParameterValue({{"t", t}});
-                beta.setParameterValue({{"t", t}});
+                Q.setParameterValues({{"t", t}});
+                beta.setParameterValues({{"t", t}});
 
                 m_heat.beta.on(
-                        _range= markedelement( m_heat.m_mesh, "AIR"), 
+                        _range= markedelements( m_heat.m_mesh, "AIR"), 
                         _expr= beta
                         );
                 m_heat.run_step(Q, dt);
 
                 ostr_heat << std::scientific
-                    << sdt::setw(15) << t
+                    << std::setw(15) << t
                     << std::setw(15) << m_heat.get_heat_IC1()
                     << std::setw(15) << m_heat.get_heat_IC2()
                     << std::setw(15) << m_heat.get_heat_out();
@@ -201,24 +207,24 @@ void Projet::run_dynamic()
         }
         else
         {
-            // les derniers modeles avec les equations de fluide
-            auto flowToConv= opinterpolation( 
-                    _domainSpace= m_ns.fluid.element<0>.functionSpace(), 
+            // les derniers modeles avec les equations de m_fluide
+            auto flowToConv= opInterpolation( 
+                    _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(), 
                     _imageSpace= m_heat.beta.functionSpace()
                     );
             for(double t = 0; t<Tfinal; t+=dt)
             {
-                Q.setParameterValue({{"t", t}});
-                beta.setParameterValue({{"t", t}});
+                Q.setParameterValues({{"t", t}});
+                beta.setParameterValues({{"t", t}});
                 m_ns.run_step(beta, dt);
-                flowToConv.apply(
-                        m_ns.fluidt.element<0>(), 
-                        m_heat.ut
+                flowToConv->apply(
+                        m_ns.m_fluidt.element<0>(), 
+                        m_heat.beta
                         );
                 m_heat.run_step(Q, dt);
 
                 ostr_heat << std::scientific
-                    << sdt::setw(15) << t
+                    << std::setw(15) << t
                     << std::setw(15) << m_heat.get_heat_IC1()
                     << std::setw(15) << m_heat.get_heat_IC2()
                     << std::setw(15) << m_heat.get_heat_out();
@@ -243,10 +249,9 @@ void Projet::run_dynamic()
     }
     else
         Feel::cerr << "le fichier n'a pas pu s'ouvrir\n";
-    file << ostr_heat.str;
 
 }
-
+#endif
 
 void Projet::affichage()
 {
@@ -266,7 +271,7 @@ void Projet::affichage()
         << "\n\t|Tamb   : " << doption("Modele.Tamb") << " K"
         << "\n\t|chauffe: " << soption("Proc.Q") << " en W/m^3"
         << "\n\t|ventil : " << m_poiseuille
-        << "\n\t|modele : " << m_modele
+        << "\n\t|m_modele : " << m_modele
         << "\n\t|===================================== "
         << "\n\t|hsize  : " << doption("gmsh.hsize")*1e3 << " mm"
         << "\n\t|Tmax   : " << doption("Time.Tfinal") << " sec"

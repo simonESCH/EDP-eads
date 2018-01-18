@@ -19,6 +19,7 @@ using namespace vf;
 
 enum Modele_type{modele0=0, modele1, modele2, modele3};
 typedef Simplex<FEELPP_DIM> MyMesh_type;
+#define TEST_PROJET_HPP 1
 
 
 /// \fn makeOptions

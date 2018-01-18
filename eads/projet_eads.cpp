@@ -6,6 +6,7 @@
 //#include "md_projet.hpp"
 #include "md_ns.hpp"
 #include "md_heat.hpp"
+#include "projet_eads.hpp"
 
 
 
@@ -27,15 +28,14 @@ int main(int argc,char* argv[])
     affichage();
 
     tic();
-#if 1
+#if TEST_PROJET_HPP
+    Projet eads;
+#else
     auto mesh=createGMSHMesh(
             _mesh= new Mesh<MyMesh_type>,
             _desc= createGMSH(),
             _update= MESH_CHECK|MESH_UPDATE_EDGES|MESH_UPDATE_FACES
             );
-#else
-    auto mesh= loadMesh(_mesh=new Mesh<MyMesh_type>);
-#endif
     toc("load mesh  ");
 
     auto modele=init_modele();
@@ -50,7 +50,7 @@ int main(int argc,char* argv[])
     auto Q= expr(soption("Proc.Q"));
 
     auto NS_to_Heat= opInterpolation(
-            _domainSpace= projet_NS.fluid.element<0>().functionSpace(),
+            _domainSpace= projet_NS.m_fluidt.element<0>().functionSpace(),
             _imageSpace= projet_Heat.beta.functionSpace()//,
             //_range= markedelements(projet_Heat.m_mesh,"AIR")
             );
@@ -63,7 +63,7 @@ int main(int argc,char* argv[])
     projet_NS.run(beta_expr);
 
     NS_to_Heat->apply(
-            projet_NS.fluidt.element<0>(),
+            projet_NS.m_fluidt.element<0>(),
             projet_Heat.beta);
 
     projet_Heat.run(Q);
@@ -72,8 +72,8 @@ int main(int argc,char* argv[])
     exp->add("heat",projet_Heat.ut);
     exp->add("param_capacity",projet_Heat.m_rc);
     exp->add("param_conductivity",projet_Heat.m_k);
-    exp->add("fluid_velocity",projet_NS.fluidt.element<0>());
-    exp->add("fluid_pressure",projet_NS.fluidt.element<1>());
+    exp->add("fluid_velocity",projet_NS.m_fluidt.element<0>());
+    exp->add("fluid_pressure",projet_NS.m_fluidt.element<1>());
     exp->save();
 
     Feel::cout
@@ -81,7 +81,7 @@ int main(int argc,char* argv[])
         <<"la temperature de IC2 est      "<<projet_Heat.get_heat_IC2()<<" K\n"
         <<"la temperature a la sortie est "<<projet_Heat.get_heat_out()<<" K\n";
 
-    //projet.run_heat(Q,beta_expr,doption("Time.Tfinal"));
+#endif
     return 0;
 }
 
