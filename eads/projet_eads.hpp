@@ -1,5 +1,5 @@
-
-#define __MD_PROJET_HPP__
+#ifndef __MD_PROJET_HPP__
+#define __MD_PROJET_HPP__ 1
 
 
 /**
@@ -20,6 +20,9 @@ using namespace vf;
 typedef Simplex<FEELPP_DIM> M_type;
 //typedef Feel::Expr
 
+
+
+#if TEST_PROJET_HPP
 class Projet
 {
     //le but de cette classe sera d'initialiser les deux autres classes
@@ -74,6 +77,13 @@ Projet::Projet():m_heat(),m_ns()
 
 }
 
+
+
+
+
+
+
+
 void Projet::run()
 {
     if(boption("Time.time"))
@@ -83,13 +93,15 @@ void Projet::run()
         run_static();
 }
 
+
+
+
+
+
+
+
 void Projet::run_static()
 {
-    auto expCase= exporter(
-            _mesh= m_mesh, 
-            _name= soption("Exporter.save")
-            );
-
     auto Q= expr(soption("Proc.Q"));
 
     // estimation de la convection
@@ -97,27 +109,41 @@ void Projet::run_static()
     {
         auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
         if(m_modele == modele1)
+        {
             m_heat.beta.on(
-                    _range= markedelements(m_heat.m_mesh, "AIR"), 
+                    _range= elements(m_heat.m_mesh),//markedelements(m_heat.m_mesh, "AIR"), 
                     _expr= beta
                     ); 
+            Feel::cout<<"convection modele1\n";
+        }
         else
         {//avec equation des m_fluides
+            tic();
             auto flowToConv= opInterpolation(
                     _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(), 
                     _imageSpace= m_heat.beta.functionSpace()
                     );
-
             m_ns.run(beta);
             flowToConv->apply(
                     m_ns.m_fluidt.element<0>(), 
                     m_heat.beta
                     );
+            Feel::cout<<"convection modele2\n";
+            toc("Fluid");
         }
     }
 
-    m_heat.run(Q);
 
+    tic();
+    m_heat.run(Q);
+    toc("Heat");
+
+
+    tic();
+    auto expCase= exporter(
+            _mesh= m_mesh, 
+            _name= soption("Exporter.save")
+            );
     expCase->add("heat", m_heat.ut);
 
     // ajout de la convection dans le .case
@@ -125,16 +151,19 @@ void Projet::run_static()
         expCase->add("convection", m_heat.beta);
     else if(m_modele != modele0)
     {
-        expCase->add("m_fluid_pressure", m_ns.m_fluid.element<1>());
-        expCase->add("m_fluid_velocity", m_ns.m_fluid.element<0>());
+        expCase->add("fluid_pressure", m_ns.m_fluidt.element<1>());
+        expCase->add("fluid_velocity", m_ns.m_fluidt.element<0>());
     }
-
     expCase->save();
+    toc("exporter");
+   
+
     Feel::cout
-        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << "\n"
-        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << "\n"
-        << "|> temperature of out : " << m_heat.get_heat_out() << "\n"
-        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "\n";
+        << "\n"
+        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << " K\n"
+        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << " K\n"
+        << "|> temperature of out : " << m_heat.get_heat_out() << " K\n"
+        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "  \n";
 }
 
 
@@ -263,22 +292,33 @@ void Projet::affichage()
         << "\n\t|== CONDUCTIVITY THERMIC ============= "
         << "\n\t|Air.k  : " << doption("Air.k") << " W/K/m"
         << "\n\t|Proc.k : " << doption("Proc.k") << " W/K/m"
-        << "\n\t|PCB.k  : " << doption("PCB.k") << " W/K/m"
-        << "\n\t|== FLUID PARAMETER ================== "
-        << "\n\t|rho    : " << doption("Air.rho") << " kg/m^3"
-        << "\n\t|mu     : " << doption("Air.mu") << " kg/m/s"
+        << "\n\t|PCB.k  : " << doption("PCB.k") << " W/K/m";
+    if( (m_modele == modele2) || (m_modele == modele3) )
+        Feel::cout
+            << "\n\t|== FLUID PARAMETER ================== "
+            << "\n\t|rho    : " << doption("Air.rho") << " kg/m^3"
+            << "\n\t|mu     : " << doption("Air.mu") << " kg/m/s";
+    Feel::cout
         << "\n\t|===================================== "
         << "\n\t|Tamb   : " << doption("Modele.Tamb") << " K"
-        << "\n\t|chauffe: " << soption("Proc.Q") << " en W/m^3"
-        << "\n\t|ventil : " << m_poiseuille
-        << "\n\t|m_modele : " << m_modele
+        << "\n\t|chauffe: " << soption("Proc.Q") << " en W/m^3";
+    if(m_modele !=modele0)
+        Feel::cout
+            << "\n\t|ventil : " << m_poiseuille;
+    Feel::cout
+        << "\n\t|m_modele : modele" << m_modele
         << "\n\t|===================================== "
-        << "\n\t|hsize  : " << doption("gmsh.hsize")*1e3 << " mm"
-        << "\n\t|Tmax   : " << doption("Time.Tfinal") << " sec"
-        << "\n\t|dt     : " << doption("Time.dt") << " sec"
+        << "\n\t|hsize  : " << doption("gmsh.hsize")*1e3 << " mm";
+    if(boption("Time.time"))
+        Feel::cout
+            << "\n\t|Tmax   : " << doption("Time.Tfinal") << " sec"
+            << "\n\t|dt     : " << doption("Time.dt") << " sec";
+    Feel::cout
         << "\n\t|===================================== "
         << "\n\t|stab   : " << std::boolalpha << boption("Modele.GaLS")
-        << "\n\t|save   : " << soption("Exporter.save");
+        << "\n\t|time   : " << boption("Time.time")
+        << "\n\t|save   : " << soption("Exporter.save")<<"\n\n";
 
 }
-
+#endif
+#endif

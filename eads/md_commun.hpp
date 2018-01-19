@@ -12,6 +12,8 @@
 #include <feel/feelfilters/gmsh.hpp>
 #include <string>
 #include <sstream>
+#include <iostream>
+#include <iomanip>
 #include <fstream>
 
 using namespace Feel;
@@ -44,15 +46,19 @@ makeOptions()
         ("PCB.k", po::value< double>()->default_value( 1), 
          "conductivity thermic of the print circuit board")
 
-        ("Air.mu",po::value<double>()->default_value( 1),
+        ("Air.mu",po::value<double>()->default_value( 1.8e-5),
          "viscosity of Air")
-        ("Air.rho",po::value<double>()->default_value( 0),
+        ("Air.rho",po::value<double>()->default_value( 1.184),
          "density of Air")
 
         ("Modele.Tamb", po::value< double>()->default_value(293.15), 
          "temperature of reference")
-        ("Proc.Q", po::value< std::string>()->default_value("0."), 
-         "Quantity of heat of the processor")
+        ("Proc.Q1", po::value< std::string>()->default_value("1e6"), 
+         "Quantity of heat of the processor IC2")
+        ("Proc.Q2", po::value< std::string>()->default_value("1e6"), 
+         "Quantity of heat of the processor IC1")
+        ("Proc.Q", po::value< std::string>()->default_value("1e6"), 
+         "Quantity of heat of the processor IC1")
         ("Modele.flux",po::value< std::string>()->default_value("0."), 
          "profile du flux d'air a l'entree")
         ("Modele.modele",po::value< std::string>()->default_value("modele0"),
@@ -168,7 +174,7 @@ std::string init_edge_in()
 {
     // recupere la force du debit d'air
     std::string D= soption(_name="Air.D");
-    int n_d= D.find(":t");
+    size_t n_d= D.find(":t");
 
     // recuperation des longueurs
     double eIC= doption("Geo.eIC");
@@ -176,7 +182,6 @@ std::string init_edge_in()
     double ePCB= doption("Geo.ePCB");
     //modele choisi
     Modele_type modele= init_modele();
-
 
     // parametre du profile de poiseuille
     double epaisseur,milieu;
@@ -193,22 +198,22 @@ std::string init_edge_in()
 
     // creation de la chiane de caractere
     std::ostringstream ostr;
-    ostr<< "{0,3/2*"<< D.substr(0,n_d)<< "/"<< epaisseur;
-    ostr<< "*(1-("
+    ostr
+        <<std::scientific
+        << "{0,3/2*"<< D.substr(0,n_d)<< "/("<< epaisseur<<")"
+        << "*(1-("
         << "(x-"<< milieu<< ")/("<< epaisseur<< "/2)"
         << ")^2)*"
         << "(x>"<< milieu-epaisseur/2<< ")*"
         << "(x<"<< milieu+epaisseur/2<< ")";
-    ostr<< "}:x";
-    if(D.size() != n_d)
-        ostr<< ":t";
+    ostr<< "}:x:t";
+    if((n_d <D.size())&&(! boption("Time.time")))
+        Feel::cerr<<"\n\t  WARNING!!! : D is dependent of the time\n";
     return ostr.str();
-
-
 }
 
 
-gmsh_ptrtype
+    gmsh_ptrtype
 createGMSH()
 {
     gmsh_ptrtype desc(new Gmsh);
@@ -237,11 +242,11 @@ createGMSH()
         << "//dimension of the areation( A)\n"
         << "eAIR = "<< doption("Geo.eAIR")<< ";//m\n"
         //<< "Include \"eads.geo\";\n";
-        
-        
-        
-    //std::ostringstream ostr_build("eads.geo");
-    //ostr_build
+
+
+
+        //std::ostringstream ostr_build("eads.geo");
+        //ostr_build
         << desc->preamble()<< "\n"
         << "//______point__________________________________________\n"
         << "// corner of the motherboard\n"
@@ -304,7 +309,7 @@ createGMSH()
         << "Plane Surface(33) = {32};//the conduct of areation\n"
         << "\n"
         << "//______physical-line__________________________________\n"
-        << "Physical Line(\"borderPCB\") = { 14, 1, 21};//bord de PCB exterieur : condition of neumann\n"
+        //<< "Physical Line(\"borderPCB\") = { 14, 1, 21};//bord de PCB exterieur : condition of neumann\n"
         << "Physical Line(\"in1\") = {15};//condition of dirichlet: T=T0, u_a=f_entre\n"
         << "Physical Line(\"in2\") = {16};//condition of dirichlet: T=T0, u_a=f_entre\n"
         << "Physical Line(\"out\") = {22, 23};//condition of Robin\n"
@@ -316,8 +321,8 @@ createGMSH()
         << "Physical Surface(\"IC1\") = {29};//processor IC1\n"
         << "Physical Surface(\"IC2\") = {31};//processor IC2\n"
         << "Physical Surface(\"AIR\") = {33};//conduct of areation\n";
-    
-    Feel::cout<< "dimension de la geometrie:\n"<< ostr_desc.str()<< "\n\n";
+
+    //Feel::cout<< "dimension de la geometrie:\n"<< ostr_desc.str()<< "\n\n";
 #else
     Feel::cerr<< "le programme ne gere pas les dimensions autre que 2\n";
     exit();
