@@ -42,7 +42,7 @@ class Projet
     void affichage();
     void run();
     void run_static();
-    void run_dynamic();
+    void run_dynamic_fluid();
 
 };
 
@@ -59,6 +59,12 @@ Projet::Projet():m_heat(),m_ns()
     m_modele= init_modele();
     m_poiseuille= init_edge_in();
     
+    if( (m_modele == modele3) && !boption("Time.time") )
+    {
+        Feel::cerr<<"le modele3 est forcement dépendant du temps\n";
+        exit(1);
+    }
+
     affichage();//mis ici car, si erreur, pas attendre de faire m_mesh
 
     m_mesh= createGMSHMesh(
@@ -69,9 +75,7 @@ Projet::Projet():m_heat(),m_ns()
     // si le m_modele n'est pas aere ou sans l'equation de Stokes 
     // m_ns n'est pas initialise
     if((m_modele == modele2)||(m_modele == modele3))
-        //m_ns= NavierStokes(m_mesh, m_modele);
         m_ns.init(m_mesh, m_modele);
-    //m_heat= Heat(m_mesh, m_modele);
     m_heat.init(m_mesh, m_modele);
     toc("init system");
 
@@ -87,7 +91,7 @@ Projet::Projet():m_heat(),m_ns()
 void Projet::run()
 {
     if(boption("Time.time"))
-        //run_dynamic();
+        //run_dynamic_fluid();
         Feel::cout<<"Work In Progress\n";
     else
         run_static();
@@ -103,7 +107,6 @@ void Projet::run()
 void Projet::run_static()
 {
     auto Q= expr(soption("Proc.Q"));
-
     // estimation de la convection
     if(m_modele != modele0)
     {
@@ -174,11 +177,8 @@ void Projet::run_static()
 
 
 
-
-
-
 #if 0
-void Projet::run_dynamic()
+run_dynamic_no_fluid()
 {
     // stockage des temperature au cour du temps
     std::ostringstream ostr_heat;
@@ -191,6 +191,7 @@ void Projet::run_dynamic()
     auto Q= expr(soption("Proc.Q"));
     double dt= doption("Time.dt");
     double Tfinal= doption("Time.Tfinal");
+
 
 
     // cas du m_modele sans refroidissement
@@ -234,8 +235,47 @@ void Projet::run_dynamic()
                     << std::setw(15) << m_heat.get_heat_out();
             }
         }
-        else
-        {
+    }
+
+    Feel::cout
+        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << "\n"
+        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << "\n"
+        << "|> temperature of out : " << m_heat.get_heat_out() << "\n"
+        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "\n";
+
+
+    std::fstream file("heat_evolution.dat", std::ios::out|std::ios::trunc);
+    if(file)
+    {
+        Feel::cout << "the evolution of the heat is in the file :"
+            << "heat_evolution.dat" << "\n";
+        file << ostr_heat.str();
+        file.close();
+    }
+    else
+        Feel::cerr << "le fichier n'a pas pu s'ouvrir\n";
+
+}
+
+
+void Projet::run_dynamic_fluid()
+{
+    // stockage des temperature au cour du temps
+    std::ostringstream ostr_heat;
+    ostr_heat
+        << std::setw(15) << "time"
+        << std::setw(15) << "temp_IC1"
+        << std::setw(15) << "temp_IC2"
+        << std::setw(15) << "temp_out";
+
+    auto Q= expr(soption("Proc.Q"));
+    double dt= doption("Time.dt");
+    double Tfinal= doption("Time.Tfinal");
+
+
+
+        auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
+
             // les derniers modeles avec les equations de m_fluide
             auto flowToConv= opInterpolation( 
                     _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(), 
@@ -258,8 +298,6 @@ void Projet::run_dynamic()
                     << std::setw(15) << m_heat.get_heat_IC2()
                     << std::setw(15) << m_heat.get_heat_out();
             }
-        }
-    }
 
     Feel::cout
         << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << "\n"
