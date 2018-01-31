@@ -229,15 +229,18 @@ void Heat::init_heat()
     // Space function for the equation of heat
     Th = space_heat_type::New(_mesh= m_mesh);
     ut = Th->element("trial Heat");
+    u_tmp = Th->element("temporate Heat");
     u  = Th->element("test Heat ");
 
     Th_vect = space_conv_type::New(_mesh= m_mesh);
     beta = Th_vect->element("Heat convection");
     beta.on(_range=elements(m_mesh), _expr=zero<FEELPP_DIM, 1>());
+    u_tmp.on(_range=elements(m_mesh), _expr=cst(doption("Modele.Tamb")));
 
     backend_heat= backend(_name="backend_heat");
     m_matrix= backend_heat->newMatrix(Th, Th);
     m_vector= backend_heat->newVector(Th);
+
 
     init_matrix();
 
@@ -366,27 +369,27 @@ void Heat::run(bilinear_type & bilinear, linear_type & linear, myexpr_type Q, do
             _expr= Q*id(u)
             );//heating of the processors
 
+    
     if( m_modele != modele0 )
     {
         bilinear+= integrate(
                 _range= markedelements(m_mesh, "AIR"), 
                 _expr= idv(m_rc) * (gradt(ut) * idv(beta)) *id(u)
                 );//convection of the heat
-
+        
         if(boption("Modele.GaLS"))
             build_heat_stab(bilinear, linear, Q);
     }
-
 
     if(dt>0)
     {
         linear+= integrate(
                 _range= elements(m_mesh), 
-                _expr= idv(m_rc) /dt * id(u) * idv(u_tmp)
+                _expr= idv(m_rc) * id(u) * idv(u_tmp)/dt
                 );// term of time's memory 
         bilinear+= integrate(
                 _range= elements(m_mesh),
-                _expr= idv(m_rc)/dt * id(u) * idt(ut)
+                _expr= idv(m_rc) * id(u) * idt(ut)/dt
                 );
     }
 
@@ -408,8 +411,7 @@ void Heat::run(bilinear_type & bilinear, linear_type & linear, myexpr_type Q, do
             _rhs=linear, 
             _backend= backend_heat
             );
-    toc("  solve  ");
-
+    toc("  solve  ");   
     toc("HEAT");
 }
 

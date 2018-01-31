@@ -90,7 +90,7 @@ class NavierStokes
     space_fluid_ptrtype Vph;
     element_fluid_type m_fluid;
     element_fluid_type m_fluidt;
-    element_fluid_type m_fluid_tmp;
+    element_fluid_type m_fluidPrec;
 
     //backend
     backend_ptrtype backend_fluid;
@@ -131,8 +131,14 @@ class NavierStokes
     //template<typename B, typename L, typename E>
     //    void resolve_fluid(B & bilinear, L & linear, E & flow, double error= 1e-3);
 
+    template<typename bilinear_type, typename linear_type, typename myexpr_type>
+void run_picard(bilinear_type & bilinear, linear_type & linear,element_fluid_type & tmp, myexpr_type flow, double dt,double maxError=1e-3);
+    
+    template<typename bilinear_type, typename linear_type, typename myexpr_type>
+double run_newton(bilinear_type & bilinear, linear_type & linear,element_fluid_type & tmp, myexpr_type flow, double dt,double maxError=1e-3);
+    
     template<typename B, typename L, typename F>
-void run(B & bilinear, L & linear, F flow, double dt=-1);
+void run(B & bilinear, L & linear, F flow, double dt=-1,double maxError=1e-3);
 
 template<typename E>
         void init_beta(E expr);
@@ -156,13 +162,13 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
 
     m_fluid= Vph->element();
     m_fluidt= Vph->element();
-    m_fluid_tmp= Vph->element();
+    m_fluidPrec= Vph->element();
 
 
     m_mu= doption("Air.mu");
     m_rho= doption("Air.rho");
 
-    m_fluid_tmp.element<0>().on(
+    m_fluidPrec.element<0>().on(
             _range= elements(m_mesh), 
             _expr= zero<FEELPP_DIM, 1>()
             );
@@ -187,7 +193,7 @@ NavierStokes::NavierStokes(mesh_ptrtype i_mesh, Modele_type mod)
 
     m_fluid= Vph->element();
     m_fluidt= Vph->element();
-    m_fluid_tmp= Vph->element();
+    m_fluidPrec= Vph->element();
 
 
     m_fluidt.element<0>().on(
@@ -227,27 +233,21 @@ void NavierStokes::init_matrix()
     auto q= m_fluid.template element<1>();
     auto p= m_fluidt.template element<1>();
 
-    auto mat_ID= eye<FEELPP_DIM, FEELPP_DIM>();
-    /// \f$ \bigl(\nabla u -pI\!d\bigl)v\cdot n\f$ is the edge's term
-    //auto deft= m_mu*sym(gradt(u))-idt(p)*mat_ID;
-    //auto deft= m_mu*gradt(vt)-idt(pt)*mat_ID;
-
-    //auto stokes_expr= inner( 2* m_mu* deft - idt(p)*mat_ID, grad(v))+
-    //                    id(q)* divt(u);
-
-    //Feel::cout<<"test "<<stokes_expr<<"\n";
+    auto expr_diffusion=  inner(grad(v), gradt(u));//sym(gradt(u))
+    auto expr_pressure= id(q)*divt(u)-idt(p)*div(v);
 
     bilinear+= integrate(
             _range= elements(m_mesh), 
-            _expr= m_mu*inner(grad(v), sym(gradt(u)))
-            +id(q)*divt(u)-idt(p)*div(v)
+            _expr= m_mu*expr_diffusion
+            +expr_pressure
             );
 
+    if(boption("Time.time"))
+        bilinear+= integrate(
+                _range= elements(m_mesh),
+                _expr= m_rho/doption("Time.dt")*inner(idt(u),id(v))
+                );
     toc("NS static  ");
-    //bilinear+= integrate(
-    //        _range= elements(m_mesh), 
-    //        _expr= id(p)*divt(vt)-idt(pt)*div(v)
-    //        );
 }
 
 
@@ -281,7 +281,7 @@ void NavierStokes::build_fluid_dynamic_bilinear(bilinear_type & bilinear, veloci
 //
 //    auto v= m_fluid.element<0>();
 //    auto u= m_fluidt.element<0>();
-//    auto u_tmp= m_fluid_tmp.element<0>();
+//    auto u_tmp= m_fluidPrec.element<0>();
 //
 //
 //    //auto expr_navier= ( trans(idt(u))*gradv(u_tmp) )*id(v);
@@ -346,7 +346,7 @@ void NavierStokes::build_fluid_dynamic_bilinear(bilinear_type & bilinear, veloci
 //                    );
 //            Feel::cout<<"erreur= "<<loop_err<<"\n";
 //            cpt++;
-//            m_fluid_tmp= m_fluidt;
+//            m_fluidPrec= m_fluidt;
 //        }
 //
 //        exp_debug->step((double) cpt)->add("velocity",u);
@@ -361,53 +361,17 @@ void NavierStokes::build_fluid_dynamic_bilinear(bilinear_type & bilinear, veloci
 
 
 
-///rename run to run
     template<typename bilinear_type, typename linear_type, typename myexpr_type>
-void NavierStokes::run(bilinear_type & bilinear, linear_type & linear, myexpr_type flow, double dt)
+void NavierStokes::run_picard(bilinear_type & bilinear, linear_type & linear,element_fluid_type & tmp, myexpr_type flow, double dt,double maxError)
 {
-
-    //resolve_fluid(bilinear, linear, flow);
-
     auto v= m_fluid.element<0>();
     auto u= m_fluidt.element<0>();
-    auto u_tmp= m_fluid_tmp.element<0>();
-    auto q= m_fluid.element<1>();
-    auto p= m_fluidt.element<1>();
+    auto u_tmp= tmp.element<0>();
 
-    if( dt>=0 )
-    {// composante temporelle
-        linear+= integrate(
-                _range= elements(m_mesh), 
-                _expr= m_rho * inner(idv(u_tmp),id(v)) /dt
-                );
-        bilinear+= integrate(
-                _range= elements(m_mesh), 
-                _expr= m_rho * inner(idt(u), id(v))/dt
-                );
-    }
-
-    if(m_modele == modele3)
-    {// terme d'auto-convection
-        auto expr_navier_lin= trans(idv(u_tmp))*gradv(u_tmp);
-        auto expr_navier_bil= trans(idt(u))*gradv(u_tmp) + trans(idv(u_tmp))*gradt(u);
-
-        linear+= integrate(
-                _range= elements(m_mesh), 
-                _expr= m_rho * expr_navier_lin * id(v)
-                );
-        bilinear+= integrate(
-                _range= elements(m_mesh), 
-                _expr= m_rho * expr_navier_bil * id(v)
-                );
-    }
-
-
-    tic();
-    bilinear+= on(//condition of Dirichlet in the edge 
-            _range= markedfaces(m_mesh, {"borderFluid", "wall"}), 
-            _rhs= linear, 
-            _element= u, 
-            _expr= zero<FEELPP_DIM, 1>()
+    auto autoconv= trans(idv(u_tmp))*gradt(u);//picard
+    bilinear+= integrate(
+            _range= elements(m_mesh),
+            _expr= m_rho * autoconv * id(v)
             );
 
     bilinear+= on(//2
@@ -416,16 +380,218 @@ void NavierStokes::run(bilinear_type & bilinear, linear_type & linear, myexpr_ty
             _element= u, 
             _expr= flow
             );
-    toc("  edges  ");
 
+    bilinear+= on(
+            _range= markedfaces(m_mesh, {"borderFluid","wall"}),
+            _rhs= linear,
+            _element= u,
+            _expr= zero<FEELPP_DIM,1>()
+            );
 
-    tic();
-    bilinear.solveb(
+    bilinear.solve(
             _solution= m_fluidt, 
-            _rhs= linear, 
-            _backend= backend_fluid);
-    toc("  solve  ");
+            _rhs= linear
+            );
+    u_tmp=u;
 }
+
+    template<typename bilinear_type, typename linear_type, typename myexpr_type>
+double NavierStokes::run_newton(bilinear_type & bilinear, linear_type & linear,element_fluid_type & tmp, myexpr_type flow, double dt,double maxError)
+{
+    auto v= m_fluid.element<0>();
+    auto u= m_fluidt.element<0>();
+    auto u_tmp= tmp.element<0>();
+
+    auto autoconv= trans(idv(u_tmp))*gradt(u)+trans(idt(u))*gradv(u_tmp);//newton
+    auto autoconv_lin= trans(idv(u_tmp))*gradt(u_tmp);
+    Feel::cout << "BALISE NEWTON 1\n";
+    bilinear+= integrate(
+            _range= elements(m_mesh),
+            _expr= m_rho * autoconv * id(v)
+            );
+
+    Feel::cout << "BALISE NEWTON 2\n";
+    linear+= integrate(
+            _range= elements(m_mesh),
+            _expr=- m_rho * autoconv_lin * id(v)
+            );
+    
+    Feel::cout << "BALISE NEWTON 3\n";
+    bilinear+= on(//2
+            _range= markedfaces(m_mesh, {"in1", "in2"}), 
+            _rhs= linear, 
+            _element= u, 
+            _expr= flow
+            );
+
+    Feel::cout << "BALISE NEWTON 4\n";
+    bilinear+= on(
+            _range= markedfaces(m_mesh, {"borderFluid","wall"}),
+            _rhs= linear,
+            _element= u,
+            _expr= zero<FEELPP_DIM,1>()
+            );
+
+    Feel::cout << "BALISE NEWTON 5\n";
+    bilinear.solve(
+            _solution= m_fluidt, 
+            _rhs= linear
+            );
+
+    Feel::cout << "BALISE NEWTON 6\n";
+    double error=normL2(
+            _range= elements(m_mesh),
+            _expr= idv(u_tmp)-idv(u)
+            );
+    
+    Feel::cout << "BALISE NEWTON 7\n";
+    u_tmp=u;
+    return error;
+}
+
+
+
+
+    template<typename bilinear_type, typename linear_type, typename myexpr_type>
+void NavierStokes::run(bilinear_type & bilinear, linear_type & linear, myexpr_type flow, double dt,double maxError)
+{
+
+    auto v= m_fluid.element<0>();
+    auto u= m_fluidt.element<0>();
+    auto uPrec= m_fluidPrec.element<0>();
+    //auto u_tmp= m_fluid.element<0>();
+
+
+    double error= 0;
+    int cpt= 0;
+    //u_tmp.on(_range= elements(m_mesh), _expr= zero<FEELPP_DIM,1>());
+
+    linear+=integrate(
+            _range= elements(m_mesh),
+            _expr= m_rho/dt*inner(idv(uPrec),id(v))
+            );
+
+    if(m_modele==modele3)
+    {
+        //auto autoconv= trans(idv(uPrec))*gradt(u);//Picard
+        //auto autoconv_lin= zero<FEELPP_DIM,1>();
+        //auto autoconv= (trans(idv(uPrec))*gradt(u)+trans(idt(u))*gradv(uPrec));//newton
+        //auto autoconv= zero<FEELPP_DIM,1>()*idt(u);
+        //auto autoconv_lin= -trans(idv(uPrec))*gradv(uPrec);
+
+
+        //bilinear+= integrate(
+        //        _range= elements(m_mesh),
+        //        _expr= m_rho * autoconv * id(v)
+        //        );
+        //linear+= integrate(
+        //        _range=elements(m_mesh),
+        //        _expr= m_rho *autoconv_lin * id(v)
+        //        );
+    }
+
+    bilinear+= on(//2
+            _range= markedfaces(m_mesh, {"in1", "in2"}), 
+            _rhs= linear, 
+            _element= u, 
+            _expr= flow
+            );
+
+    bilinear+= on(
+            _range= markedfaces(m_mesh, {"borderFluid","wall"}),
+            _rhs= linear,
+            _element= u,
+            _expr= zero<FEELPP_DIM,1>()
+            );
+
+    bilinear.solve(
+            _solution= m_fluidt, 
+            _rhs= linear
+            );
+
+    //if(m_modele == modele3)
+    //{
+    //    error= normL2(
+    //            _range= elements(m_mesh),
+    //            _expr= idv(u)-idv(u_tmp)
+    //            );
+    //    u_tmp= u;
+    //    Feel::cout << "iteration " << cpt << ",\terreur= " << error <<"\n";
+    //}
+    //cpt++;
+    //}while(( maxError<error*0 ) && (cpt<MAX_LOOP_PICARD));
+
+
+    }
+
+///rename run to run
+//    template<typename bilinear_type, typename linear_type, typename myexpr_type>
+//void NavierStokes::run(bilinear_type & bilinear, linear_type & linear, myexpr_type flow, double dt)
+//{
+//
+//    //resolve_fluid(bilinear, linear, flow);
+//
+//    auto v= m_fluid.element<0>();
+//    auto u= m_fluidt.element<0>();
+//    auto u_tmp= m_fluidPrec.element<0>();
+//    auto q= m_fluid.element<1>();
+//    auto p= m_fluidt.element<1>();
+//
+//    if( dt>=0 )
+//    {// composante temporelle
+//        linear+= integrate(
+//                _range= elements(m_mesh), 
+//                _expr= m_rho * inner(idv(u_tmp),id(v)) /dt
+//                );
+//        bilinear+= integrate(
+//                _range= elements(m_mesh), 
+//                _expr= m_rho * inner(idt(u), id(v))/dt
+//                )
+//
+//            if(m_modele == modele3)
+//            {// terme d'auto-convection
+//                auto expr_navier_lin= cst(0.);//trans(idv(u_tmp))*gradv(u_tmp)*(dt-1);
+//                auto expr_navier_bil= trans(idt(u))*gradv(u_tmp);//(trans(idt(u))*gradv(u_tmp) + trans(idv(u_tmp))*gradt(u))*dt;
+//
+//                //linear+= integrate(
+//                //        _range= elements(m_mesh), 
+//                //        _expr= m_rho * expr_navier_lin * id(v)
+//                //        );
+//                bilinear+= integrate(
+//                        _range= elements(m_mesh), 
+//                        _expr= m_rho * expr_navier_bil * id(v)
+//                        );
+//            }
+//    }
+//
+//
+//    tic();
+//    bilinear+= on(//condition of Dirichlet in the edge 
+//            _range= markedfaces(m_mesh, {"borderFluid", "wall"}), 
+//            _rhs= linear, 
+//            _element= u, 
+//            _expr= zero<FEELPP_DIM, 1>()
+//            );
+//
+//    bilinear+= on(//2
+//            _range= markedfaces(m_mesh, {"in1", "in2"}), 
+//            _rhs= linear, 
+//            _element= u, 
+//            _expr= flow
+//            );
+//    toc("  edges  ");
+//
+//
+//    tic();
+//    bilinear.solve(
+//            _solution= m_fluidt, 
+//            _rhs= linear
+//            );
+//    toc("  solve  ");
+//}
+
+
+
 
     template<typename myexpr_type>
 void NavierStokes::run(myexpr_type flow)
