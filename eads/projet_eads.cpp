@@ -4,10 +4,10 @@
 
 
 //#include "md_projet.hpp"
-#include "md_ns.hpp"
-#include "md_heat.hpp"
-#include "projet_eads.hpp"
-
+//#include "md_ns.hpp"
+//#include "md_heat.hpp"
+//#include "projet_eads.hpp"
+#include "projet_eads2.hpp"
 
 
 
