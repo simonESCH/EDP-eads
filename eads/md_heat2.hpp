@@ -365,7 +365,7 @@ void Heat::build_heat_stab(bilinear_type & bilinear, linear_type & linear, myexp
 //! \fn init_matrix
 //! \brief build the matrix matrix for the term with no-time dependance
     template<typename bilinear_type, typename linear_type>
-void Heat::init_matrix(bilinear_type & bilinear, linear & linear)
+void Heat::init_matrix(bilinear_type & bilinear, linear_type & linear)
 {
 
     linear.zero();

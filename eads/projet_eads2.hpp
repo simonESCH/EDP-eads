@@ -248,10 +248,10 @@ void Projet::run_dynamic_no_fluid()
             Q.setParameterValues({{"t", t}});
             m_heat.run(Q, dt);
 
-            expCase->step(t)->add("heat", m_heat.u_tmp);
+            expCase->step(t)->add("heat", m_heat.uPrec);
             expCase->save();
 
-            m_heat.u_tmp= m_heat.ut;
+            m_heat.uPrec= m_heat.ut;
             add_sortie(t);
 
         }
@@ -281,7 +281,7 @@ void Projet::run_dynamic_no_fluid()
                 expCase->step(t)->add("heat", m_heat.ut);
                 expCase->save();
 
-                m_heat.u_tmp= m_heat.ut;
+                m_heat.uPrec= m_heat.ut;
                 add_sortie(t);
             }
         }
@@ -302,7 +302,7 @@ void Projet::run_dynamic_fluid()
     auto lin_fluid= form1(_test= m_ns.Vph,_vector=m_ns.vector);
     auto bil_fluid= form2(_test= m_ns.Vph, _trial= m_ns.Vph, _matrix= m_ns.matrix);
 
-    auto lin_heat= form1(_test= m_heat.Th), _vector=m_heat.vector;
+    auto lin_heat= form1(_test= m_heat.Th, _vector=m_heat.vector);
     auto bil_heat= form2(_test= m_heat.Th, _trial= m_heat.Th, _matrix=m_heat.matrix);
 
     auto lin_fluid_static= form1(_test= m_ns.Vph);
@@ -355,7 +355,7 @@ void Projet::run_dynamic_fluid()
             //        );
             m_ns.build_time_linear(lin_fluid,dt);
 
-            m_ns.run_picard(bil_fluid, lin_fluid, tmp, beta, dt);
+            m_ns.run_picard( tmp, beta, dt);
         }
 
         double error= 1;
@@ -372,7 +372,7 @@ void Projet::run_dynamic_fluid()
             //        );
             m_ns.build_time_linear(lin_fluid,dt);
 
-            error= m_ns.run_newton(bil_fluid, lin_fluid, tmp, beta, dt);// NE MARCHE PAS
+            error= m_ns.run_newton( tmp, beta, dt);// NE MARCHE PAS
             if(error < 1e-8)
                 test_newton=false;
             else
@@ -395,20 +395,15 @@ void Projet::run_dynamic_fluid()
         bil_heat= bil_heat_static;
         lin_heat= lin_heat_static;
 
-        m_heat.run(bil_heat, lin_heat, Q, dt);
-        m_heat.u_tmp= m_heat.ut;
+        m_heat.run( Q, dt);
+        m_heat.uPrec= m_heat.ut;
 
-        expCase->step(t)->add("heat", m_heat.u_tmp);
+        expCase->step(t)->add("heat", m_heat.uPrec);
         toc(" HEAT  ");
         expCase->save();
 
         add_sortie(t);
-        //ostr_heat << std::scientific
-        //    << std::setw(15) << t
-        //    << std::setw(15) << m_heat.get_heat_IC1()
-        //    << std::setw(15) << m_heat.get_heat_IC2()
-        //    << std::setw(15) << m_heat.get_heat_out()
-        //    << "\n";
+        
         std::ostringstream ostr_time;
         ostr_time << "time : " << std::setprecision(3) << t << " s";
         toc(ostr_time.str());
@@ -416,30 +411,8 @@ void Projet::run_dynamic_fluid()
     }
 
 
-    Feel::cout
-        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << "\n"
-        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << "\n"
-        << "|> temperature of out : " << m_heat.get_heat_out() << "\n"
-        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "\n";
-
-
-    //expCase->save();
 
     affiche_sortie();
-    //if(Environment::isMasterRank())
-    //{
-    //    Feel::cout << "contenue du fichier ...\n" << ostr_heat.str() << "\n";
-    //    std::fstream file("heat_evolution.dat", std::ios::out|std::ios::trunc);
-    //    if(file)
-    //    {
-    //        Feel::cout << "the evolution of the heat is in the file :"
-    //            << "heat_evolution.dat" << "\n";
-    //        file << ostr_heat.str();
-    //        file.close();
-    //    }
-    //    else
-    //        Feel::cerr << "le fichier n'a pas pu s'ouvrir\n";
-    //}
 
 }
 #endif

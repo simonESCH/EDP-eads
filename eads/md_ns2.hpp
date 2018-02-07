@@ -56,12 +56,12 @@ class NavierStokes
     typedef double value_type;
     typedef Backend<value_type> backend_type;
     typedef boost::shared_ptr<backend_type> backend_ptrtype;
-    typedef typename m_backend::sparse_matrix_type matrix_type;
-    typedef typename m_backend::vector_type vector_type;
+    typedef typename backend_type::sparse_matrix_type matrix_type;
+    typedef typename backend_type::vector_type vector_type;
 
     // typedef ptr matrix
-    typedef typename m_backend::sparse_matrix_ptrtype matrix_ptrtype;
-    typedef typename m_backend::vector_ptrtype vector_ptrtype;
+    typedef typename backend_type::sparse_matrix_ptrtype matrix_ptrtype;
+    typedef typename backend_type::vector_ptrtype vector_ptrtype;
 
     public:
 
@@ -101,14 +101,14 @@ class NavierStokes
 
     //function
 
-#if TEST_PROJET_HPP
+
     NavierStokes(){}
     void init(mesh_ptrtype mesh, Modele_type mod);
     void init_fluid();
 
 
-
-    void init_matrix();
+template<typename bilinear_type, typename linear_type>
+    void init_matrix(bilinear_type & bilinear, linear_type & linear);
 
     template<typename L>
         void build_time_linear(L & linear, double dt);
@@ -138,7 +138,6 @@ template<typename E>
 
 
 
-#if TEST_PROJET_HPP
 
 void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
 {
@@ -161,7 +160,7 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
             _expr= zero<FEELPP_DIM, 1>()
             );
 
-    m_backend= m_backend(_name= "m_backend");
+    m_backend= backend(_name= "m_backend");
     matrix= m_backend->newMatrix(Vph, Vph);
     vector= m_backend->newVector(Vph);
     
@@ -329,7 +328,7 @@ double NavierStokes::run_newton(
 
 
 
-    template<typename bilinear_type, typename linear_type, typename myexpr_type>
+    template<typename myexpr_type>
 void NavierStokes::run(myexpr_type flow, double dt)
 {
 
@@ -382,7 +381,8 @@ void NavierStokes::run(myexpr_type flow)
             );
 
     init_matrix(bilinear, linear);
-    run(bilinear, linear, flow);
+    run(flow,-1);
+
 }
 
 
