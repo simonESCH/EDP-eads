@@ -32,7 +32,7 @@ makeOptions()
 {
     po::options_description myappOptions( "My app options" );
     myappOptions.add_options()
-        ("Air.rc", po::value< double>()->default_value( 0 ),
+        ("Air.rc", po::value< double>()->default_value( 0 ), 
          "Rho*Capa of air")
         ("Proc.rc", po::value< double>()->default_value( 0 ), 
          "Rho*Capa of processor")
@@ -46,9 +46,9 @@ makeOptions()
         ("PCB.k", po::value< double>()->default_value( 1), 
          "conductivity thermic of the print circuit board")
 
-        ("Air.mu",po::value<double>()->default_value( 1.8e-5),
+        ("Air.mu", po::value<double>()->default_value( 1.8e-5), 
          "viscosity of Air")
-        ("Air.rho",po::value<double>()->default_value( 1.184),
+        ("Air.rho", po::value<double>()->default_value( 1.184), 
          "density of Air")
 
         ("Modele.Tamb", po::value< double>()->default_value(293.15), 
@@ -59,48 +59,48 @@ makeOptions()
          "Quantity of heat of the processor IC1")
         ("Proc.Q", po::value< std::string>()->default_value("1e6"), 
          "Quantity of heat of the processor IC1")
-        ("Modele.flux",po::value< std::string>()->default_value("0."), 
+        ("Modele.flux", po::value< std::string>()->default_value("0."), 
          "profile du flux d'air a l'entree")
-        ("Modele.modele",po::value< std::string>()->default_value("modele0"),
+        ("Modele.modele", po::value< std::string>()->default_value("modele0"), 
          "choix du Modele")
 
-        ("Air.D",po::value<std::string>()->default_value("1e3"), 
+        ("Air.D", po::value<std::string>()->default_value("1e3"), 
          "power of the air flow")
-        ("Modele.epsilon",po::value<double>()->default_value(1), 
+        ("Modele.epsilon", po::value<double>()->default_value(1), 
          "epsilon de GaLS")
 
-        //("Time.Tfinal",po::value< double>()->default_value(0), 
+        //("Time.Tfinal", po::value< double>()->default_value(0), 
         // "temps maximal")
-        //("Modele.dt",po::value< double>()->default_value(.1), 
+        //("Modele.dt", po::value< double>()->default_value(.1), 
         // "pas de temps")
-        ("Modele.GaLS",po::value<bool>()->default_value( false ), 
+        ("Modele.GaLS", po::value<bool>()->default_value( false ), 
          "activation de la stabilisation GaLS")
 #if 1
-        ("Geo.ePCB",po::value<double>()->default_value(2e-3),
+        ("Geo.ePCB", po::value<double>()->default_value(2e-3), 
          "thickness of the print circuit board")
-        ("Geo.hPCB",po::value<double>()->default_value(13e-2),
+        ("Geo.hPCB", po::value<double>()->default_value(13e-2), 
          "height of the print circuit board")
-        ("Geo.eAIR",po::value<double>()->default_value(4e-3),
+        ("Geo.eAIR", po::value<double>()->default_value(4e-3), 
          "thickness of the areation")
-        ("Geo.eIC",po::value<double>()->default_value(2e-3),
+        ("Geo.eIC", po::value<double>()->default_value(2e-3), 
          "thickness of the processors")
-        ("Geo.hIC",po::value<double>()->default_value(2e-2),
+        ("Geo.hIC", po::value<double>()->default_value(2e-2), 
          "height of the processors")
-        ("Geo.h1",po::value<double>()->default_value(2e-2),
+        ("Geo.h1", po::value<double>()->default_value(2e-2), 
          "position of the processor IC1")
-        ("Geo.h2",po::value<double>()->default_value(7e-2),
+        ("Geo.h2", po::value<double>()->default_value(7e-2), 
          "position of the processor IC2")
-        ("Time.time",po::value<bool>()->default_value(false),
+        ("Time.time", po::value<bool>()->default_value(false), 
          "choisis entre avec dependance en temps ou non")
-        ("Time.dt",po::value<double>()->default_value(.1),
+        ("Time.dt", po::value<double>()->default_value(.1), 
          "increment de temps")
-        ("Time.Tfinal",po::value<double>()->default_value(1),
+        ("Time.Tfinal", po::value<double>()->default_value(1), 
          "temps de la simulation")
 
 #endif
-        ("Exporter.save",po::value< std::string>()->default_value("Solve"),
+        ("Exporter.save", po::value< std::string>()->default_value("Solve"), 
          "nom du fichier .case")
-        //("Exporter.load",po::value< std::string>()->default_value(""),
+        //("Exporter.load", po::value< std::string>()->default_value(""), 
         // "chemin de l'approximation fine")
         ;
     myappOptions.add(backend_options("backend_heat"));
@@ -114,34 +114,34 @@ makeOptions()
 
 /// \fn affichage
 /// \brief affichage of the option in the file of config
-void affichage()
-{
-
-    Feel::cout<< "\n\t========================"
-        << "\n\t|Air.rc : " << doption("Air.rc") << " J/K/m^3"
-        << "\n\t|Proc.rc: " << doption("Proc.rc") << " J/K/m^3"
-        << "\n\t|PCB.rc : " << doption("PCB.rc") << " J/K/m^3"
-        << "\n\t|======================="
-        << "\n\t|Air.k : " << doption("Air.k") << " W/K/m"
-        << "\n\t|Proc.k : " << doption("Proc.k") << " W/K/m"
-        << "\n\t|PCB.k : " << doption("PCB.k") << " W/K/m"
-        << "\n\t|======================="
-        << "\n\t|Tamb  : " << doption("Modele.Tamb") << " K"
-        << "\n\t|chauffe: " << soption("Proc.Q") << " en W/m^3"
-        << "\n\t|ventil : " << "..."
-        << "\n\t|modele : " << soption("Modele.modele");
-
-    //if(soption("Exporter.load").compare(""))
-    //  Feel::cout<< "\n\t|load  : "<< soption("Exporter.load");
-    //if(soption("Exporter.save").compare(""))
-    //  Feel::cout<< "\n\t|save  : "<< soption("Exporter.save");
-
-    Feel::cout<< "\n\t|======================="
-        << "\n\t|hsize : " << doption("gmsh.hsize")*1e3<< " mm"
-        << "\n\t|Tmax  : " << doption("Time.Tfinal")<< " sec"
-        << "\n\t|dt   : " << doption("Time.dt")<< " sec"    
-        << "\n\t========================\n\n";
-}
+//void affichage()
+//{
+//
+//    Feel::cout<< "\n\t========================"
+//        << "\n\t|Air.rc : " << doption("Air.rc") << " J/K/m^3"
+//        << "\n\t|Proc.rc: " << doption("Proc.rc") << " J/K/m^3"
+//        << "\n\t|PCB.rc : " << doption("PCB.rc") << " J/K/m^3"
+//        << "\n\t|======================="
+//        << "\n\t|Air.k : " << doption("Air.k") << " W/K/m"
+//        << "\n\t|Proc.k : " << doption("Proc.k") << " W/K/m"
+//        << "\n\t|PCB.k : " << doption("PCB.k") << " W/K/m"
+//        << "\n\t|======================="
+//        << "\n\t|Tamb  : " << doption("Modele.Tamb") << " K"
+//        << "\n\t|chauffe: " << soption("Proc.Q") << " en W/m^3"
+//        << "\n\t|ventil : " << "..."
+//        << "\n\t|modele : " << soption("Modele.modele");
+//
+//    //if(soption("Exporter.load").compare(""))
+//    //  Feel::cout<< "\n\t|load  : "<< soption("Exporter.load");
+//    //if(soption("Exporter.save").compare(""))
+//    //  Feel::cout<< "\n\t|save  : "<< soption("Exporter.save");
+//
+//    Feel::cout<< "\n\t|======================="
+//        << "\n\t|hsize : " << doption("gmsh.hsize")*1e3<< " mm"
+//        << "\n\t|Tmax  : " << doption("Time.Tfinal")<< " sec"
+//        << "\n\t|dt   : " << doption("Time.dt")<< " sec"    
+//        << "\n\t========================\n\n";
+//}
 
 
 
@@ -184,7 +184,7 @@ std::string init_edge_in()
     Modele_type modele= init_modele();
 
     // parametre du profile de poiseuille
-    double epaisseur,milieu;
+    double epaisseur, milieu;
     if ((modele == modele1) || (modele == modele0))
     {
         epaisseur= eAir-eIC;
@@ -200,7 +200,7 @@ std::string init_edge_in()
     std::ostringstream ostr;
     ostr
         <<std::scientific
-        << "{0,3/2*"<< D.substr(0,n_d)<< "/("<< epaisseur<<")"
+        << "{0, 3/2*"<< D.substr(0, n_d)<< "/("<< epaisseur<<")"
         << "*(1-("
         << "(x-"<< milieu<< ")/("<< epaisseur<< "/2)"
         << ")^2)*"
@@ -240,87 +240,77 @@ createGMSH()
         << "h2   = "<< doption("Geo.h2")<< ";//hPCB-hIC-h1;//m\n"
         << "\n"
         << "//dimension of the areation( A)\n"
-        << "eAIR = "<< doption("Geo.eAIR")<< ";//m\n"
+        << "eAIR = "<< doption("Geo.eAIR")<< ";//m\n\n"
         //<< "Include \"eads.geo\";\n";
 
-
-
-        //std::ostringstream ostr_build("eads.geo");
-        //ostr_build
         << desc->preamble()<< "\n"
         << "//______point__________________________________________\n"
         << "// corner of the motherboard\n"
         << "Point(1)    = {0, 0, 0, h};\n"
         << "Point(2)    = {ePCB, 0, 0, h};\n"
         << "Point(3)    = {ePCB, h1, 0, h};\n"
-        << "Point(4)    = {ePCB, h1+hIC, 0, h};\n"
+        << "Point(4)    = {ePCB, h1+hIC, 0, h/2};\n"
         << "Point(5)    = {ePCB, h2, 0, h};\n"
-        << "Point(6)    = {ePCB, h2+hIC, 0, h};\n"
-        << "Point(7)    = {ePCB, hPCB, 0, h};\n"
+        << "Point(6)    = {ePCB, h2+hIC, 0, h/2};\n"
+        << "Point(7)    = {ePCB, hPCB, 0, h/2};\n"
         << "Point(8)    = {0, hPCB, 0, h};\n"
         << "\n"
         << "// other corner of processors\n"
-        << "Point(9)    = {ePCB+eIC, h1, 0, h};\n"
-        << "Point(10)   = {ePCB+eIC, h1+hIC, 0, h};\n"
-        << "Point(11)   = {ePCB+eIC, h2, 0, h};\n"
-        << "Point(12)   = {ePCB+eIC, h2+hIC, 0, h};\n"
+        << "Point(9)    = {ePCB+eIC, h1, 0, h/2};\n"
+        << "Point(10)   = {ePCB+eIC, h1+hIC, 0, h/2};\n"
+        << "Point(11)   = {ePCB+eIC, h2, 0, h/2};\n"
+        << "Point(12)   = {ePCB+eIC, h2+hIC, 0, h/2};\n"
         << "\n"
         << "// other corner of the areation\n"
         << "Point(13)   = {ePCB+eAIR, 0, 0, h};\n"
-        << "Point(14)   = {ePCB+eAIR, hPCB, 0, h};\n"
+        << "Point(14)   = {ePCB+eAIR, hPCB, 0, h/2};\n"
         << "Point(15)   = {ePCB+eIC, 0, 0, h};\n"
-        << "Point(16)   = {ePCB+eIC, hPCB, 0, h};\n"
         << "\n"
         << "//______line __________________________________________\n"
-        << "Line(1) = {1, 8};\n"
+        << "Line(1) = {1, 2};\n"
         << "Line(2) = {2, 3};\n"
         << "Line(3) = {3, 4};\n"
         << "Line(4) = {4, 5};\n"
         << "Line(5) = {5, 6};\n"
         << "Line(6) = {6, 7};\n"
-        << "Line(7) = {15, 9};\n"
-        << "Line(8) = {9, 10};\n"
-        << "Line(9) = {10, 11};\n"
-        << "Line(10) = {11, 12};\n"
-        << "Line(11) = {12, 16};\n"
-        << "Line(12) = {14, 13};\n"
-        << "Line(13) = {13, 13};\n"
-        << "Line(14) = {1, 2};\n"
+        << "Line(7) = {7, 8};\n"
+        << "Line(8) = {8, 1};\n"//PBC's cycle
+
+        << "Line(9) = {3, 9};\n"
+        << "Line(10) = {9, 10};\n"
+        << "Line(11) = {10, 4};\n"//IC1's cycle
+
+        << "Line(12) = {5, 11};\n"
+        << "Line(13) = {11, 12};\n"
+        << "Line(14) = {12, 6};\n"//IC2's cycle
+
         << "Line(15) = {2, 15};\n"
         << "Line(16) = {15, 13};\n"
-        << "Line(17) = {3, 9};\n"
-        << "Line(18) = {4, 10};\n"
-        << "Line(19) = {5, 11};\n"
-        << "Line(20) = {6, 12};\n"
-        << "Line(21) = {8, 7};\n"
-        << "Line(22) = {7, 16};\n"
-        << "Line(23) = {16, 14};\n"
+        << "Line(17) = {13, 14};\n"
+        << "Line(18) = {14, 7};\n"
         << "\n"
         << "//______surface________________________________________\n"
-        << "Line Loop(24) = {1, 21, -6, -5, -4, -3, -2, -14};\n"
-        << "Plane Surface(25) = {24};//motherBoard\n"
-        << "Line Loop(26) = {7, 8, 9, 10, 11, 23, 12, -16};\n"
-        << "Plane Surface(27) = {26};//air's passage\n"
-        << "Line Loop(28) = {17, 8, -18, -3};\n"
-        << "Plane Surface(29) = {28};//processor IC1\n"
-        << "Line Loop(30) = {19, 10, -20, -5};\n"
-        << "Plane Surface(31) = {30};//processor IC2\n"
-        << "Line Loop(32) = {15, 16, -12, -23, -22, -6, 20, -10, -19, -4, 18, -8, -17, -2};\n"
-        << "Plane Surface(33) = {32};//the conduct of areation\n"
+        << "Line Loop(20) = {1, 2, 3, 4, 5, 6, 7, 8};\n"
+        << "Plane Surface(100) = {20};//motherBoard\n"
+        << "Line Loop(21) = {9, 10, 11, -3};\n"
+        << "Plane Surface(101) = {21};//processor IC1\n"
+        << "Line Loop(22) = {12, 13, 14, -5};\n"
+        << "Plane Surface(102) = {22};//processor IC2\n"
+        << "Line Loop(23) = {15, 16, 17, 18, -6, -14, -13, -12, -4, -11, -10, -9, -2};\n"
+        << "Plane Surface(103) = {23};//the conduct of areation\n"
         << "\n"
         << "//______physical-line__________________________________\n"
-        //<< "Physical Line(\"borderPCB\") = { 14, 1, 21};//bord de PCB exterieur : condition of neumann\n"
         << "Physical Line(\"in1\") = {15};//condition of dirichlet: T=T0, u_a=f_entre\n"
         << "Physical Line(\"in2\") = {16};//condition of dirichlet: T=T0, u_a=f_entre\n"
-        << "Physical Line(\"out\") = {22, 23};//condition of Robin\n"
-        << "Physical Line(\"wall\") = {12};// paroi du conduit d'areation\n"
-        << "Physical Line(\"borderFluid\") = {2, 4, 6, 8, 10, 17, 18, 19, 20};// paroi du conduit d'areation interieur\n"
+        << "Physical Line(\"out\") = {18};//condition of Robin\n"
+        << "Physical Line(\"wall\") = {17};// paroi du conduit d'areation\n"
+        << "Physical Line(\"borderFluid\") = {2,9,10,11,4,12,13,14,6};// paroi du conduit d'areation interieur\n"
         << "\n"
         << "//______physical-surface_______________________________\n"
-        << "Physical Surface(\"PCB\") = {25};//motherboard PCB\n"
-        << "Physical Surface(\"IC1\") = {29};//processor IC1\n"
-        << "Physical Surface(\"IC2\") = {31};//processor IC2\n"
-        << "Physical Surface(\"AIR\") = {33};//conduct of areation\n";
+        << "Physical Surface(\"PCB\") = {100};//motherboard PCB\n"
+        << "Physical Surface(\"IC1\") = {101};//processor IC1\n"
+        << "Physical Surface(\"IC2\") = {102};//processor IC2\n"
+        << "Physical Surface(\"AIR\") = {103};//conduct of areation\n";
 
     //Feel::cout<< "dimension de la geometrie:\n"<< ostr_desc.str()<< "\n\n";
 #else

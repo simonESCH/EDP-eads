@@ -35,15 +35,20 @@ class Projet
     boost::shared_ptr<Mesh<M_type>> m_mesh;
     Modele_type m_modele;
     std::string m_poiseuille;
+    std::ostringstream m_sortie;
 
     public:
     Projet();
 
-    void affichage();
+    void affiche_parametre();
+    void affiche_sortie();
+    void add_sortie(double t);
+
     void run();
     void run_static();
     void run_dynamic_fluid();
     void run_dynamic_no_fluid();
+    
 
 };
 
@@ -52,7 +57,7 @@ class Projet
 
 
 
-Projet::Projet():m_heat(), m_ns()
+Projet::Projet():m_heat(), m_ns(), m_sortie()
 {
     Feel::cout << "initialisation\n";
 
@@ -66,7 +71,7 @@ Projet::Projet():m_heat(), m_ns()
         exit(1);
     }
 
-    affichage();//mis ici car, si erreur, pas attendre de faire m_mesh
+    affiche_parametre();//mis ici car, si erreur, pas attendre de faire m_mesh
 
     m_mesh= createGMSHMesh(
             _mesh= new Mesh<MyMesh_type>, 
@@ -78,6 +83,17 @@ Projet::Projet():m_heat(), m_ns()
     if((m_modele == modele2)||(m_modele == modele3))
         m_ns.init(m_mesh, m_modele);
     m_heat.init(m_mesh, m_modele);
+
+
+    m_sortie
+        << std::setw(15) << "time"
+        << std::setw(15) << "temp_IC1"
+        << std::setw(15) << "temp_IC2"
+        << std::setw(15) << "temp_out"
+        << "\n";
+
+
+
     toc("init system");
 
 }
@@ -129,7 +145,12 @@ void Projet::run_static()
                     _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(), 
                     _imageSpace= m_heat.beta.functionSpace()
                     );
-            m_ns.run(beta);
+            if( m_modele==modele2)
+                m_ns.run(beta);
+            else
+            {
+                m_ns.run(beta);
+            }
             flowToConv->apply(
                     m_ns.m_fluidt.element<0>(), 
                     m_heat.beta
@@ -307,13 +328,13 @@ void Projet::run_dynamic_no_fluid()
 void Projet::run_dynamic_fluid()
 {
     // stockage des temperature au cour du temps
-    std::ostringstream ostr_heat;
-    ostr_heat
-        << std::setw(15) << "time"
-        << std::setw(15) << "temp_IC1"
-        << std::setw(15) << "temp_IC2"
-        << std::setw(15) << "temp_out" 
-        << "\n";
+    //std::ostringstream ostr_heat;
+    //ostr_heat
+    //    << std::setw(15) << "time"
+    //    << std::setw(15) << "temp_IC1"
+    //    << std::setw(15) << "temp_IC2"
+    //    << std::setw(15) << "temp_out" 
+    //    << "\n";
 
     auto Q= expr(soption("Proc.Q"));
     double dt= doption("Time.dt");
@@ -358,37 +379,40 @@ void Projet::run_dynamic_fluid()
         lin_fluid= lin_fluid_static;
         m_ns.run(bil_fluid, lin_fluid, beta, dt);
 #else
-        tmp.element<0>().on(_range= elements(m_ns.m_mesh), _expr= zero<FEELPP_DIM, 1>());
+        //tmp.element<0>().on(_range= elements(m_ns.m_mesh), _expr= zero<FEELPP_DIM, 1>());
+        tmp=m_ns.m_fluidPrec;
         for(int i= 0;i<2;i++)
         {
             bil_fluid= bil_fluid_static;
             lin_fluid= lin_fluid_static;
-            Feel::cout << "BALISE 1\n";
-            auto expr_temp= m_ns.m_rho * inner(idv(m_ns.m_fluidPrec.element<0>()), idt(m_ns.m_fluidt.element<0>()))/dt;
-            lin_fluid+=integrate(
-                    _range= elements(m_ns.m_mesh),
-                    _expr= expr_temp
-                    );
-            Feel::cout << "BALISE 2\n";
+
+            //auto expr_temp= m_ns.m_rho * inner(idv(m_ns.m_fluidPrec.element<0>()), idt(m_ns.m_fluidt.element<0>()))/dt;
+            //lin_fluid+=integrate(
+            //        _range= elements(m_ns.m_mesh),
+            //        _expr= expr_temp
+            //        );
+            m_ns.build_time_linear(lin_fluid,dt);
+
             m_ns.run_picard(bil_fluid, lin_fluid, tmp, beta, dt);
         }
+
         double error= 1;
-        for(int i= 0;i<100;i++)
+        bool test_newton=true;
+        for(int i= 0;i<13 && test_newton;i++)
         {
             bil_fluid= bil_fluid_static;
             lin_fluid= lin_fluid_static;
             
-            Feel::cout << "BALISE 3\n";
-            auto expr_temp= m_ns.m_rho * inner(idv(m_ns.m_fluidPrec.element<0>()), idt(m_ns.m_fluidt.element<0>()))/dt;
-            lin_fluid+=integrate(
-                    _range= elements(m_ns.m_mesh),
-                    _expr= expr_temp
-                    );
+            //auto expr_temp= m_ns.m_rho * inner(idv(m_ns.m_fluidPrec.element<0>()), idt(m_ns.m_fluidt.element<0>()))/dt;
+            //lin_fluid+=integrate(
+            //        _range= elements(m_ns.m_mesh),
+            //        _expr= expr_temp
+            //        );
+            m_ns.build_time_linear(lin_fluid,dt);
 
-            Feel::cout << "BALISE 4\n";
-            error= m_ns.run_newton(bil_fluid, lin_fluid, tmp, beta, dt);
-            if(error<1e-3)
-                break;
+            error= m_ns.run_newton(bil_fluid, lin_fluid, tmp, beta, dt);// NE MARCHE PAS
+            if(error < 1e-8)
+                test_newton=false;
             else
                 Feel::cout << "--> error= " << error << "\n";
         }
@@ -416,13 +440,13 @@ void Projet::run_dynamic_fluid()
         toc(" HEAT  ");
         expCase->save();
 
-
-        ostr_heat << std::scientific
-            << std::setw(15) << t
-            << std::setw(15) << m_heat.get_heat_IC1()
-            << std::setw(15) << m_heat.get_heat_IC2()
-            << std::setw(15) << m_heat.get_heat_out()
-            << "\n";
+        add_sortie(t);
+        //ostr_heat << std::scientific
+        //    << std::setw(15) << t
+        //    << std::setw(15) << m_heat.get_heat_IC1()
+        //    << std::setw(15) << m_heat.get_heat_IC2()
+        //    << std::setw(15) << m_heat.get_heat_out()
+        //    << "\n";
         std::ostringstream ostr_time;
         ostr_time << "time : " << std::setprecision(3) << t << " s";
         toc(ostr_time.str());
@@ -439,26 +463,66 @@ void Projet::run_dynamic_fluid()
 
     //expCase->save();
 
-
-    if(Environment::isMasterRank())
-    {
-        Feel::cout << "contenue du fichier ...\n" << ostr_heat.str() << "\n";
-        std::fstream file("heat_evolution.dat", std::ios::out|std::ios::trunc);
-        if(file)
-        {
-            Feel::cout << "the evolution of the heat is in the file :"
-                << "heat_evolution.dat" << "\n";
-            file << ostr_heat.str();
-            file.close();
-        }
-        else
-            Feel::cerr << "le fichier n'a pas pu s'ouvrir\n";
-    }
+    affiche_sortie();
+    //if(Environment::isMasterRank())
+    //{
+    //    Feel::cout << "contenue du fichier ...\n" << ostr_heat.str() << "\n";
+    //    std::fstream file("heat_evolution.dat", std::ios::out|std::ios::trunc);
+    //    if(file)
+    //    {
+    //        Feel::cout << "the evolution of the heat is in the file :"
+    //            << "heat_evolution.dat" << "\n";
+    //        file << ostr_heat.str();
+    //        file.close();
+    //    }
+    //    else
+    //        Feel::cerr << "le fichier n'a pas pu s'ouvrir\n";
+    //}
 
 }
 #endif
 
-void Projet::affichage()
+
+
+
+
+
+void Projet::add_sortie(double t)
+{
+    m_sortie << std::scientific
+        << std::setw(15) << t
+        << std::setw(15) << m_heat.get_heat_IC1()
+        << std::setw(15) << m_heat.get_heat_IC2()
+        << std::setw(15) << m_heat.get_heat_out()
+        << "\n";
+}
+
+
+void Projet::affiche_sortie()
+{
+    if(Environment::isMasterRank())
+    {
+        std::cout << "contenue du fichier ...\n" << m_sortie.str() << "\n";
+
+
+        std::fstream file("heat_evolution.dat", std::ios::out|std::ios::trunc);
+        if(file)
+        {
+            std::cout << "the evolution of the heat is in the file :"
+                << "heat_evolution.dat" << "\n";
+            file << m_sortie.str();
+            file.close();
+        }
+        else
+            std::cerr << "le fichier \"" 
+            << "heat_evolution.dat"
+            << "\" n'a pas pu s'ouvrir\n";
+    }
+}
+
+
+
+void Projet::affiche_parametre()
 {
     Feel::cout
         << "\n\t|== CAPACITY THERMIC ================= "

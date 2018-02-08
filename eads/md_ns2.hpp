@@ -160,7 +160,7 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
             _expr= zero<FEELPP_DIM, 1>()
             );
 
-    m_backend= backend(_name= "m_backend");
+    m_backend= backend(_name= "backend_fluid");
     matrix= m_backend->newMatrix(Vph, Vph);
     vector= m_backend->newVector(Vph);
     

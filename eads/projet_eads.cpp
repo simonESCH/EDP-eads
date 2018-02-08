@@ -8,7 +8,7 @@
 //#include "md_heat.hpp"
 //#include "projet_eads.hpp"
 #include "projet_eads2.hpp"
-
+#define TEST_PROJET_HPP 1
 
 
 

@@ -175,13 +175,12 @@ class Heat
 
 void Heat::init(mesh_ptrtype theMesh, Modele_type mod)
 {
+    tic();
     m_modele=mod;
     this->m_mesh= createSubmesh( theMesh, elements(theMesh));
     init_param();
     init_heat();
-    
-    matrix->zero();
-    vector->zero();
+    toc("init_heat");
 }
 
 
@@ -239,9 +238,12 @@ void Heat::init_heat()
     beta.on(_range=elements(m_mesh), _expr=zero<FEELPP_DIM, 1>());
     uPrec.on(_range=elements(m_mesh), _expr=cst(doption("Modele.Tamb")));
 
-    m_backend= backend(_name="m_backend");
+    m_backend= backend(_name="backend_heat");
     matrix= m_backend->newMatrix(Th, Th);
     vector= m_backend->newVector(Th);
+
+    matrix->zero();
+    vector->zero();
 
     toc("Th/Th_vect");
 }
@@ -384,12 +386,14 @@ void Heat::init_matrix(bilinear_type & bilinear, linear_type & linear)
 
 
 
+
+
 // RUN //
     template<typename myexpr_type>
-void Heat::run(myexpr_type Q)
+void Heat::run(myexpr_type Q,double dt)
 {
     tic();
-    double dt= doption("Time.time");
+    //double dt= doption("Time.time");
 
     tic();
     auto linear= form1(_test= Th, _matrix= matrix);
@@ -470,7 +474,7 @@ void Heat::run( myexpr_type Q)
     auto bilinear= form2( _test= Th, _trial= Th, _matrix= matrix);
     auto linear= form1( _test= Th,_vector=vector);
 
-    run(bilinear, linear, Q);
+    run(Q);
 }
 
 
