@@ -20,6 +20,34 @@ typedef Simplex<FEELPP_DIM> M_type;
 //typedef Feel::Expr
 
 
+
+
+//// metode utlisation
+// Heat heat;
+// auto bilinear= form2(_test=heat.Th, _trial= heat.Th,_matrix=heat.matrix);
+// auto linear= form1(test=heat.Th, _vector= heat.vector);
+// heat.init(bilinear,linear);
+// heat.run(...);
+//
+// ou
+//
+// Heat heat;
+// auto bilinear= form2(_test=heat.Th, _trial= heat.Th,_matrix=heat.matrix);
+// auto linear= form1(test=heat.Th, _vector= heat.vector);
+// auto bilinear_static= form2(_test=heat.Th, _trial= heat.Th);
+// auto linear_static= form1(test=heat.Th);
+// heat.init(bilinear_static,linear_static);
+// while()
+// {
+//      bilinear.zero()
+//      linear.zero()
+//      bilinear+=bilinear_static
+//      linear+=linear_static
+//      heat.run(...);
+// }
+// 
+
+
 class Heat
 {
     // typedef m_mesh
@@ -65,13 +93,11 @@ class Heat
     typedef typename backend_type::sparse_matrix_ptrtype matrix_ptrtype;
     typedef typename backend_type::vector_ptrtype vector_ptrtype;
 
+    private:
 
-    /// \enum modele_enum
-    /// \brief m_modele entre 4 m_modele different
-    /// * modele0 : pas de convection du a l'air
-    /// * modele1 : on suppose que le flux d'air suit un profile de poiseuille 
-    /// * modele2 : on suppose que l'air suit les equations de modele2
-    /// * navier modele2 : on suppose que l'air suit les equation de navier-modele2
+    void init_param();
+    void init_heat();
+    void init_conv();
 
     public:
 
@@ -94,61 +120,43 @@ class Heat
     space_heat_ptrtype Th;
     element_heat_type u;
     element_heat_type ut;
-    element_heat_type u_tmp;
+    element_heat_type uPrec;
 
     // function of heat convection
     space_conv_ptrtype Th_vect;
     element_conv_type beta;
 
     //backend
-    backend_ptrtype backend_heat;
+    backend_ptrtype m_backend;
 
     //matrix
-    matrix_ptrtype m_matrix;
-    vector_ptrtype m_vector;
+    matrix_ptrtype matrix;
+    vector_ptrtype vector;
 
 
 
 
     // private function
 
-    void init_param();
-    void init_heat();
-    void init_conv();
-
-
-
-
-    //template<typename bilinear_type, typename linear_type>
-    //    void build_heat_diric_edge(bilinear_type & bilinear, linear_type & linear);
 
     template<typename bilinear_type, typename linear_type, typename myexpr_type>
         void build_heat_stab(bilinear_type & bilinear, linear_type & linear, myexpr_type Q);
 
-    void init_matrix();
+    template<typename bilinear_type, typename linear_type>
+        void init_matrix(bilinear_type & bilinear,linear_type & linear);
 
-    //template<typename bilinear_type, typename linear_type, typename myexpr_type>
-    //    void build_heat_dynamic(bilinear_type & bilinear, linear_type & linear, myexpr_type Q, double dt=-1);
-    
-    template<typename B, typename L, typename E>
-        void run(B & bilinear, L & linear, E Q, double dt=-1);
+    template<typename expr_type>
+        void run(expr_type Q, double dt);
 
     template<typename myexpr_type>
         void run(myexpr_type Q);
-
-    //template<typename myexpr_type>
-    //    void run_step( myexpr_type Q, double dt=-1);
 
 
     /// \fn Heat
     /// \brief constructor
     ///
-#if TEST_PROJET_HPP
     Heat(){}
     void init(mesh_ptrtype, Modele_type);
-#else
-    Heat(mesh_ptrtype mesh, Modele_type mod);
-#endif
 
     template<typename E>
         void init_beta(E expr);
@@ -165,24 +173,16 @@ class Heat
 
 
 
-#if TEST_PROJET_HPP
 void Heat::init(mesh_ptrtype theMesh, Modele_type mod)
 {
+    tic();
     m_modele=mod;
     this->m_mesh= createSubmesh( theMesh, elements(theMesh));
     init_param();
     init_heat();
+    toc("init_heat");
 }
 
-#else
-
-Heat::Heat(mesh_ptrtype theMesh, Modele_type mod):m_modele(mod)
-{
-    this->m_mesh= createSubmesh( theMesh, elements(theMesh));
-    init_param();
-    init_heat();
-}
-#endif
 
 
 
@@ -197,7 +197,7 @@ Heat::Heat(mesh_ptrtype theMesh, Modele_type mod):m_modele(mod)
 void Heat::init_param()
 {
     tic();
-    P0 = space_param_type::New(_mesh=m_mesh, _extended_doftable=true);
+    P0 = space_param_type::New(_mesh=m_mesh);
 
     // coefficient of thermic condictivity
     m_k = P0->element("thermic conductivity");
@@ -220,29 +220,30 @@ void Heat::init_param()
 //! \brief init the function's Space for resolution of the Heat equation
 //! create the space function Th=\f$ P_2[X]\f$ for the heat equation
 //! init :
-//! * u : the test function
-//! * ut: the trial function
-//! * u_tmp :the memory function( heat of the time t-dt)
+//! * u     : the test function
+//! * ut    : the trial function
+//! * uPrec : the memory function( heat of the time t-dt)(init : ambiant heat)
+//! * beta  : air flow (init at zero)
 void Heat::init_heat()
 {
     tic();
     // Space function for the equation of heat
     Th = space_heat_type::New(_mesh= m_mesh);
     ut = Th->element("trial Heat");
-    u_tmp = Th->element("temporate Heat");
+    uPrec = Th->element("temporate Heat");
     u  = Th->element("test Heat ");
 
     Th_vect = space_conv_type::New(_mesh= m_mesh);
     beta = Th_vect->element("Heat convection");
     beta.on(_range=elements(m_mesh), _expr=zero<FEELPP_DIM, 1>());
-    u_tmp.on(_range=elements(m_mesh), _expr=cst(doption("Modele.Tamb")));
+    uPrec.on(_range=elements(m_mesh), _expr=cst(doption("Modele.Tamb")));
 
-    backend_heat= backend(_name="backend_heat");
-    m_matrix= backend_heat->newMatrix(Th, Th);
-    m_vector= backend_heat->newVector(Th);
+    m_backend= backend(_name="backend_heat");
+    matrix= m_backend->newMatrix(Th, Th);
+    vector= m_backend->newVector(Th);
 
-
-    init_matrix();
+    matrix->zero();
+    vector->zero();
 
     toc("Th/Th_vect");
 }
@@ -317,51 +318,89 @@ double Heat::get_error_Lu()
 void Heat::build_heat_stab(bilinear_type & bilinear, linear_type & linear, myexpr_type Q)
 {
     tic();
-    auto L= -idv(m_k)*laplacian(u) + idv(m_rc)*( grad(u)*idv(beta) );
-    auto Lt= -idv(m_k)*laplaciant(ut) +  idv(m_rc) * ( gradt(ut)*idv(beta) );
-    auto delta= doption("Modele.epsilon") * cst(1.)/( 1./h() + idv(m_k)/(h()*h()) );
+    // forme bilineaire de notre probleme
 
-    bilinear+=integrate(
-            _range= elements(m_mesh), 
-            _expr= delta*L*Lt
-            );    
+    if(boption("Time.time"))
+    {
+        auto L= -idv(m_k)*laplacian(u) + idv(m_rc)*( grad(u)*idv(beta) ) + idv(m_rc)*id(u)/doption("Time.dt");
+        auto Lt= -idv(m_k)*laplaciant(ut) +  idv(m_rc) * ( gradt(ut)*idv(beta) ) + idv(m_rc)*idt(ut)/doption("Time.dt"); 
+        auto f = Q + idv(m_rc)*idv(uPrec)/doption("Time.dt");
 
-    linear+=integrate(
-            _range= markedelements(m_mesh, {"IC1", "IC2"}), 
-            _expr= L*delta*Q
-            );
+        auto delta= doption("Modele.epsilon") * cst(1.)/( 1./h() + idv(m_k)/(h()*h()) );
+
+        bilinear+=integrate(
+                _range= elements(m_mesh), 
+                _expr= delta*L*Lt
+                );    
+
+        linear+=integrate(
+                _range= markedelements(m_mesh, {"IC1", "IC2"}), 
+                _expr= delta*L*f
+                );
+    }
+    else
+    {
+
+        auto L= -idv(m_k)*laplacian(u) + idv(m_rc)*( grad(u)*idv(beta) );
+        auto Lt= -idv(m_k)*laplaciant(ut) +  idv(m_rc) * ( gradt(ut)*idv(beta) );
+        auto f=Q;
+
+
+        auto delta= doption("Modele.epsilon") * cst(1.)/( 1./h() + idv(m_k)/(h()*h()) );
+
+        bilinear+=integrate(
+                _range= elements(m_mesh), 
+                _expr= delta*L*Lt
+                );    
+
+        linear+=integrate(
+                _range= markedelements(m_mesh, {"IC1", "IC2"}), 
+                _expr= delta*L*f
+                );
+    }
     toc("stabilisation");
 }
 
-//! \fn init_matrix
-//! \brief build the matrix m_matrix for the term with no-time dependance
-void Heat::init_matrix()
-{
-    m_matrix->zero();
-    m_vector->zero();
 
-    auto bilinear= form2(_test= Th, _trial= Th, _matrix= m_matrix);
+
+
+//! \fn init_matrix
+//! \brief build the matrix matrix for the term with no-time dependance
+    template<typename bilinear_type, typename linear_type>
+void Heat::init_matrix(bilinear_type & bilinear, linear_type & linear)
+{
+
+    linear.zero();
+    bilinear.zero();
     bilinear+= integrate(
             _range= elements(m_mesh), 
             _expr= idv(m_k) * inner(grad(u), gradt(ut))
             );// diffusion of heat
 }
 
-
-
-
+//template<typename bilinear_type, typename linear_type>
+//void update(bilinear_type & bilinear,linear_type & linear)
+//{
+//    matrix.
+//}
 
 
 
 
 
 // RUN //
-
-
-    template<typename bilinear_type, typename linear_type, typename myexpr_type>
-void Heat::run(bilinear_type & bilinear, linear_type & linear, myexpr_type Q, double dt)
+    template<typename myexpr_type>
+void Heat::run(myexpr_type Q,double dt)
 {
     tic();
+    //double dt= doption("Time.time");
+
+    tic();
+    auto linear= form1(_test= Th, _matrix= matrix);
+    auto bilinear= form2(_test= Th, _trial= Th, _vector=vector);
+    toc("init bil/lin");
+
+    toc();
 
     tic();
     linear+= integrate(
@@ -369,32 +408,33 @@ void Heat::run(bilinear_type & bilinear, linear_type & linear, myexpr_type Q, do
             _expr= Q*id(u)
             );//heating of the processors
 
-    
+
     if( m_modele != modele0 )
     {
         bilinear+= integrate(
                 _range= markedelements(m_mesh, "AIR"), 
                 _expr= idv(m_rc) * (gradt(ut) * idv(beta)) *id(u)
                 );//convection of the heat
-        
+
         if(boption("Modele.GaLS"))
             build_heat_stab(bilinear, linear, Q);
     }
 
-    if(dt>0)
+    if(boption("Time.time"))
     {
-        linear+= integrate(
+        linear+= integrate( // terme de memoire/inertie
                 _range= elements(m_mesh), 
-                _expr= idv(m_rc) * id(u) * idv(u_tmp)/dt
-                );// term of time's memory 
-        bilinear+= integrate(
+                _expr= idv(m_rc) * id(u) * idv(uPrec)/dt
+                );
+
+        bilinear+= integrate( // terme de reaction
                 _range= elements(m_mesh),
                 _expr= idv(m_rc) * id(u) * idt(ut)/dt
                 );
     }
 
 
-    bilinear+=on(
+    bilinear+=on( // temperature du flot d'entree
             _range= markedfaces(m_mesh, {"in1", "in2"}), 
             _rhs= linear, 
             _element= ut, 
@@ -406,10 +446,10 @@ void Heat::run(bilinear_type & bilinear, linear_type & linear, myexpr_type Q, do
     //build_heat_diric_edge(bilinear, linear);
 
     tic();
-    bilinear.solveb(
-            _solution= ut, 
-            _rhs=linear, 
-            _backend= backend_heat
+    m_backend->solve(
+            _solution= ut,
+            _matrix=matrix,
+            _rhs=vector
             );
     toc("  solve  ");   
     toc("HEAT");
@@ -431,72 +471,11 @@ void Heat::run(bilinear_type & bilinear, linear_type & linear, myexpr_type Q, do
     template<typename myexpr_type>
 void Heat::run( myexpr_type Q)
 {
-    auto bilinear= form2( _test= Th, _trial= Th, _matrix= m_matrix);
-    auto linear= form1( _test= Th);
+    auto bilinear= form2( _test= Th, _trial= Th, _matrix= matrix);
+    auto linear= form1( _test= Th,_vector=vector);
 
-    run(bilinear, linear, Q);
+    run(Q);
 }
-
-#if 0
-//! \fn run
-    template<typename heat_type, typename conv_type>
-void Heat::run(heat_type Q, conv_type beta_expr, double T, std::string export_name)
-{
-    tic();
-    auto envoi= exporter(_mesh= m_mesh, _name= export_name);
-    double dt= doption("Time.dt");
-
-
-    tic();
-    element_heat_type u_tmp= Th->element();
-    //auto f= form2( _test= Th, _trial= Th);
-    auto f= form2( _test= Th, _trial= Th, _matrix= m_matrix);
-    init_matrix( f, dt);
-    u_tmp.on( 
-            _range= elements(m_mesh), 
-            _expr = cst(doption("Modele.Tamb"))
-            );//la temperature initiale est la temperature ambiante
-    toc("init dynamic");
-
-
-
-    Feel::cout<<"les resultats seront dans le dossier '"<<export_name<<"'\n";
-
-    for(double t=0;t<T;t+=dt)
-    {
-        tic();
-
-        // init for the time t the value for the edge and the heat quantity Q
-        beta_expr.setParameterValues({{"t", t}});
-        Q.setParameterValues({{"t", t}});
-        init_beta(beta_expr);
-
-        run_step(f, u_tmp, Q, dt);
-
-        envoi->step(t)->add("heat", u_tmp);
-        u_tmp= ut;
-        std::ostringstream ostr;
-        ostr << "t= " << t << " s";
-
-        toc(ostr.str());
-
-        envoi->save();
-        Feel::cout<<"la temperature du processeur IC2 est : "<<get_heat_IC2()<<" K\n"
-            <<"la norme de u a qui on a applique L est :"<<get_error_Lu()<<"\n"
-            <<"\n";
-    }
-}
-#endif
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -518,4 +497,3 @@ void Heat::run(heat_type Q, conv_type beta_expr, double T, std::string export_na
 
 
 #endif
-

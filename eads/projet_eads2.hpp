@@ -11,8 +11,8 @@
 #include <sstream>
 #include <string>
 #include <iomanip> 
-#include "md_ns.hpp"
-#include "md_heat.hpp"
+#include "md_ns2.hpp"
+#include "md_heat2.hpp"
 
 using namespace Feel;
 using namespace vf;
@@ -65,12 +65,6 @@ Projet::Projet():m_heat(), m_ns(), m_sortie()
     m_modele= init_modele();
     m_poiseuille= init_edge_in();
 
-    if( (m_modele == modele3) && !boption("Time.time") )
-    {
-        Feel::cerr<< "le modele3 est forcement dépendant du temps\n";
-        exit(1);
-    }
-
     affiche_parametre();//mis ici car, si erreur, pas attendre de faire m_mesh
 
     m_mesh= createGMSHMesh(
@@ -78,12 +72,7 @@ Projet::Projet():m_heat(), m_ns(), m_sortie()
             _desc= createGMSH()
             );
 
-    // si le m_modele n'est pas aere ou sans l'equation de Stokes 
-    // m_ns n'est pas initialise
-    if((m_modele == modele2)||(m_modele == modele3))
-        m_ns.init(m_mesh, m_modele);
-    m_heat.init(m_mesh, m_modele);
-
+    Feel::cout << "marqueur mesh\n";
 
     m_sortie
         << std::setw(15) << "time"
@@ -93,6 +82,9 @@ Projet::Projet():m_heat(), m_ns(), m_sortie()
         << "\n";
 
 
+        m_heat.init(m_mesh, m_modele);
+        if( (m_modele==modele2) || (m_modele==modele3))
+            m_ns.init(m_mesh, m_modele);
 
     toc("init system");
 
@@ -107,13 +99,24 @@ Projet::Projet():m_heat(), m_ns(), m_sortie()
 
 void Projet::run()
 {
+    Feel::cout << "marqueur 0\n";
     if(boption("Time.time"))
-        if( (m_modele == modele0) || (m_modele == modele1) )
-            run_dynamic_no_fluid();
-        else
-            run_dynamic_fluid();
+        //if( (m_modele == modele0) || (m_modele == modele1) )
+        //    run_dynamic_no_fluid();
+        //else
+        //    run_dynamic_fluid();
+        Feel::cout<<"on ne fait pas dans le temps\n";
     else
+    {
         run_static();
+    }
+
+    Feel::cout
+        << "\n"
+        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << " K\n"
+        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << " K\n"
+        << "|> temperature of out : " << m_heat.get_heat_out() << " K\n"
+        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "  \n";
 }
 
 
@@ -127,24 +130,44 @@ void Projet::run_static()
 {
     auto Q= expr(soption("Proc.Q"));
     // estimation de la convection
+    
+    Feel::cout << "marqueur 0bis\n";
+    tic();
+    auto bilinear_heat= form2(_test=m_heat.Th, _trial= m_heat.Th,_matrix=m_heat.matrix);
+    auto linear_heat=form1(_test=m_heat.Th,_vector=m_heat.vector);
+    Feel::cout << "marqueur 1\n";
+    m_heat.init_matrix(bilinear_heat,linear_heat);
+    
+
     if(m_modele != modele0)
-    {
+    { // the implementation of the flow is the heat equation
         auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
+
+        Feel::cout << "marqueur 2\n";
         if(m_modele == modele1)
         {
             m_heat.beta.on(
                     _range= elements(m_heat.m_mesh), //markedelements(m_heat.m_mesh, "AIR"), 
                     _expr= beta
                     ); 
-            Feel::cout<< "convection modele1\n";
+            toc("...");
         }
         else
         {//avec equation des m_fluides
-            tic();
+            
+            Feel::cout << "marqueur 3\n";
+            auto bilinear_fluid= form2(_test=m_ns.Vph, _trial= m_ns.Vph,_matrix=m_ns.matrix); 
+            auto linear_fluid= form1(_test=m_ns.Vph, _vector=m_ns.vector); 
+            m_ns.init_matrix(bilinear_fluid, linear_fluid);
+
+            
+    Feel::cout << "marqueur 4\n";
             auto flowToConv= opInterpolation(
                     _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(), 
                     _imageSpace= m_heat.beta.functionSpace()
                     );
+            toc("...");
+
             if( m_modele==modele2)
                 m_ns.run(beta);
             else
@@ -159,6 +182,7 @@ void Projet::run_static()
             toc("Fluid");
         }
     }
+    else toc("...");
 
 
     tic();
@@ -185,12 +209,6 @@ void Projet::run_static()
     toc("exporter");
 
 
-    Feel::cout
-        << "\n"
-        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << " K\n"
-        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << " K\n"
-        << "|> temperature of out : " << m_heat.get_heat_out() << " K\n"
-        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "  \n";
 }
 
 
@@ -201,18 +219,11 @@ void Projet::run_static()
 
 
 
-#if 1
+#if 0
 void Projet::run_dynamic_no_fluid()
 {
     // stockage des temperature au cour du temps
-    std::ostringstream ostr_heat;
-    ostr_heat
-        << std::setw(15) << "time"
-        << std::setw(15) << "temp_IC1"
-        << std::setw(15) << "temp_IC2"
-        << std::setw(15) << "temp_out"
-        << "\n";
-
+    
     auto Q= expr(soption("Proc.Q"));
     double dt= doption("Time.dt");
     double Tfinal= doption("Time.Tfinal");
@@ -222,17 +233,13 @@ void Projet::run_dynamic_no_fluid()
             _name= soption("Exporter.save")
             );
 
-    auto bilinear_static= form2(
-            _test= m_heat.Th, 
-            _trial= m_heat.Th, 
-            _matrix= m_heat.m_matrix);
-    auto bilinear= form2(
-            _test= m_heat.Th, 
-            _trial= m_heat.Th);
-    auto linear_static= form1(
-            _test= m_heat.Th, 
-            _vector= m_heat.m_vector);
-    auto linear= form1(_test= m_heat.Th);
+    auto bilinear_static= form2(_test= m_heat.Th, _trial= m_heat.Th);
+    auto bilinear= form2(_test= m_heat.Th, _trial= m_heat.Th, _matrix= m_heat.matrix);
+
+    auto linear_static= form1( _test= m_heat.Th);
+    auto linear= form1(_test= m_heat.Th, _vector= m_heat.vector);
+
+    m_heat.init_matrix(bilinear_static, linear_static);
 
 
     // cas du m_modele sans refroidissement
@@ -244,20 +251,14 @@ void Projet::run_dynamic_no_fluid()
             bilinear= bilinear_static;
 
             Q.setParameterValues({{"t", t}});
-            m_heat.run(bilinear, linear, Q, dt);
+            m_heat.run(Q, dt);
 
-            expCase->step(t)->add("heat", m_heat.u_tmp);
+            expCase->step(t)->add("heat", m_heat.uPrec);
             expCase->save();
 
-            m_heat.u_tmp= m_heat.ut;
+            m_heat.uPrec= m_heat.ut;
+            add_sortie(t);
 
-
-            ostr_heat << std::scientific
-                << std::setw(15) << t
-                << std::setw(15) << m_heat.get_heat_IC1()
-                << std::setw(15) << m_heat.get_heat_IC2()
-                << std::setw(15) << m_heat.get_heat_out()
-                << "\n";
         }
     }
     else
@@ -280,61 +281,21 @@ void Projet::run_dynamic_no_fluid()
                         _range= markedelements( m_heat.m_mesh, "AIR"), 
                         _expr= beta
                         );
-                m_heat.run(bilinear, linear, Q, dt);
-                
+                m_heat.run(Q, dt);
+
                 expCase->step(t)->add("heat", m_heat.ut);
                 expCase->save();
-                
-                m_heat.u_tmp= m_heat.ut;
 
-
-                ostr_heat << std::scientific
-                    << std::setw(15) << t
-                    << std::setw(15) << m_heat.get_heat_IC1()
-                    << std::setw(15) << m_heat.get_heat_IC2()
-                    << std::setw(15) << m_heat.get_heat_out()
-                    << "\n";
+                m_heat.uPrec= m_heat.ut;
+                add_sortie(t);
             }
         }
     }
-
-    Feel::cout
-        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << "\n"
-        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << "\n"
-        << "|> temperature of out : " << m_heat.get_heat_out() << "\n"
-        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "\n";
-
-
-    //expCase->save();
-
-    if(Environment::isMasterRank())
-    {
-        std::cout << "contenue du fichier ...\n" << ostr_heat.str() << "\n";
-        std::fstream file("heat_evolution.dat", std::ios::out|std::ios::trunc);
-        if(file)
-        {
-            Feel::cout << "the evolution of the heat is in the file :"
-                << "heat_evolution.dat" << "\n";
-            file << ostr_heat.str();
-            file.close();
-        }
-        else
-            Feel::cerr << "le fichier n'a pas pu s'ouvrir\n";
-    }
-
+    affiche_sortie();
 }
-
 
 void Projet::run_dynamic_fluid()
 {
-    // stockage des temperature au cour du temps
-    //std::ostringstream ostr_heat;
-    //ostr_heat
-    //    << std::setw(15) << "time"
-    //    << std::setw(15) << "temp_IC1"
-    //    << std::setw(15) << "temp_IC2"
-    //    << std::setw(15) << "temp_out" 
-    //    << "\n";
 
     auto Q= expr(soption("Proc.Q"));
     double dt= doption("Time.dt");
@@ -342,14 +303,19 @@ void Projet::run_dynamic_fluid()
     double error;
 
     tic();
-    auto lin_fluid= form1(_test= m_ns.Vph);
-    auto bil_fluid= form2(_test= m_ns.Vph, _trial= m_ns.Vph);
-    auto lin_heat= form1(_test= m_heat.Th);
-    auto bil_heat= form2(_test= m_heat.Th, _trial= m_heat.Th);
-    auto lin_fluid_static= form1(_test= m_ns.Vph, _vector= m_ns.m_vector);
-    auto bil_fluid_static= form2(_test= m_ns.Vph, _trial= m_ns.Vph, _matrix= m_ns.m_matrix);
-    auto lin_heat_static= form1(_test= m_heat.Th, _vector= m_heat.m_vector);
-    auto bil_heat_static= form2(_test= m_heat.Th, _trial= m_heat.Th, _matrix= m_heat.m_matrix);
+    auto lin_fluid= form1(_test= m_ns.Vph,_vector=m_ns.vector);
+    auto bil_fluid= form2(_test= m_ns.Vph, _trial= m_ns.Vph, _matrix= m_ns.matrix);
+
+    auto lin_heat= form1(_test= m_heat.Th, _vector=m_heat.vector);
+    auto bil_heat= form2(_test= m_heat.Th, _trial= m_heat.Th, _matrix=m_heat.matrix);
+
+    auto lin_fluid_static= form1(_test= m_ns.Vph);
+    auto bil_fluid_static= form2(_test= m_ns.Vph, _trial= m_ns.Vph);
+    m_ns.init_matrix(bil_fluid_static, lin_fluid_static);
+
+    auto lin_heat_static= form1(_test= m_heat.Th);
+    auto bil_heat_static= form2(_test= m_heat.Th, _trial= m_heat.Th);
+    m_heat.init_matrix(bil_fluid_static, lin_fluid_static);
 
     auto tmp= m_ns.Vph->element();
     auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
@@ -374,11 +340,6 @@ void Projet::run_dynamic_fluid()
         beta.setParameterValues({{"t", t}});
 
         tic();
-#if 0
-        bil_fluid= bil_fluid_static;
-        lin_fluid= lin_fluid_static;
-        m_ns.run(bil_fluid, lin_fluid, beta, dt);
-#else
         //tmp.element<0>().on(_range= elements(m_ns.m_mesh), _expr= zero<FEELPP_DIM, 1>());
         tmp=m_ns.m_fluidPrec;
         for(int i= 0;i<2;i++)
@@ -393,7 +354,7 @@ void Projet::run_dynamic_fluid()
             //        );
             m_ns.build_time_linear(lin_fluid,dt);
 
-            m_ns.run_picard(bil_fluid, lin_fluid, tmp, beta, dt);
+            m_ns.run_picard( tmp, beta, dt);
         }
 
         double error= 1;
@@ -402,7 +363,7 @@ void Projet::run_dynamic_fluid()
         {
             bil_fluid= bil_fluid_static;
             lin_fluid= lin_fluid_static;
-            
+
             //auto expr_temp= m_ns.m_rho * inner(idv(m_ns.m_fluidPrec.element<0>()), idt(m_ns.m_fluidt.element<0>()))/dt;
             //lin_fluid+=integrate(
             //        _range= elements(m_ns.m_mesh),
@@ -410,14 +371,13 @@ void Projet::run_dynamic_fluid()
             //        );
             m_ns.build_time_linear(lin_fluid,dt);
 
-            error= m_ns.run_newton(bil_fluid, lin_fluid, tmp, beta, dt);// NE MARCHE PAS
+            error= m_ns.run_newton( tmp, beta, dt);// NE MARCHE PAS
             if(error < 1e-8)
                 test_newton=false;
             else
                 Feel::cout << "--> error= " << error << "\n";
         }
         m_ns.m_fluidPrec= m_ns.m_fluidt;
-#endif
 
         expCase->step(t)->add("fluid_velocity", m_ns.m_fluidPrec.element<0>());
         expCase->step(t)->add("fluid_pressure", m_ns.m_fluidPrec.element<1>());
@@ -433,20 +393,15 @@ void Projet::run_dynamic_fluid()
         bil_heat= bil_heat_static;
         lin_heat= lin_heat_static;
 
-        m_heat.run(bil_heat, lin_heat, Q, dt);
-        m_heat.u_tmp= m_heat.ut;
+        m_heat.run( Q, dt);
+        m_heat.uPrec= m_heat.ut;
 
-        expCase->step(t)->add("heat", m_heat.u_tmp);
+        expCase->step(t)->add("heat", m_heat.uPrec);
         toc(" HEAT  ");
         expCase->save();
 
         add_sortie(t);
-        //ostr_heat << std::scientific
-        //    << std::setw(15) << t
-        //    << std::setw(15) << m_heat.get_heat_IC1()
-        //    << std::setw(15) << m_heat.get_heat_IC2()
-        //    << std::setw(15) << m_heat.get_heat_out()
-        //    << "\n";
+        
         std::ostringstream ostr_time;
         ostr_time << "time : " << std::setprecision(3) << t << " s";
         toc(ostr_time.str());
@@ -454,30 +409,8 @@ void Projet::run_dynamic_fluid()
     }
 
 
-    Feel::cout
-        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << "\n"
-        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << "\n"
-        << "|> temperature of out : " << m_heat.get_heat_out() << "\n"
-        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "\n";
-
-
-    //expCase->save();
 
     affiche_sortie();
-    //if(Environment::isMasterRank())
-    //{
-    //    Feel::cout << "contenue du fichier ...\n" << ostr_heat.str() << "\n";
-    //    std::fstream file("heat_evolution.dat", std::ios::out|std::ios::trunc);
-    //    if(file)
-    //    {
-    //        Feel::cout << "the evolution of the heat is in the file :"
-    //            << "heat_evolution.dat" << "\n";
-    //        file << ostr_heat.str();
-    //        file.close();
-    //    }
-    //    else
-    //        Feel::cerr << "le fichier n'a pas pu s'ouvrir\n";
-    //}
 
 }
 #endif
@@ -515,8 +448,8 @@ void Projet::affiche_sortie()
         }
         else
             std::cerr << "le fichier \"" 
-            << "heat_evolution.dat"
-            << "\" n'a pas pu s'ouvrir\n";
+                << "heat_evolution.dat"
+                << "\" n'a pas pu s'ouvrir\n";
     }
 }
 

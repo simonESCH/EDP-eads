@@ -398,7 +398,7 @@ void Projet::run_dynamic_fluid()
 
         double error= 1;
         bool test_newton=true;
-        for(int i= 0;i<13 && test_newton;i++)
+        for(int i= 0;i<3 && test_newton;i++)
         {
             bil_fluid= bil_fluid_static;
             lin_fluid= lin_fluid_static;
