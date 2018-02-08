@@ -471,10 +471,8 @@ void Heat::run(myexpr_type Q,double dt)
     template<typename myexpr_type>
 void Heat::run( myexpr_type Q)
 {
-    auto bilinear= form2( _test= Th, _trial= Th, _matrix= matrix);
-    auto linear= form1( _test= Th,_vector=vector);
-
-    run(Q);
+    Feel::cout << "marqueur heat 1\n";
+    run(Q,0);
 }
 
 

@@ -166,8 +166,10 @@ void Projet::run_static()
                     _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(), 
                     _imageSpace= m_heat.beta.functionSpace()
                     );
-            toc("...");
+            toc("create flow");
+            
 
+            tic();
             if( m_modele==modele2)
                 m_ns.run(beta);
             else
@@ -179,10 +181,10 @@ void Projet::run_static()
                     m_heat.beta
                     );
             Feel::cout<< "convection modele2\n";
-            toc("Fluid");
+            toc("create flow");
         }
     }
-    else toc("...");
+    else toc("init flow");
 
 
     tic();
