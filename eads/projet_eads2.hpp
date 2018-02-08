@@ -83,7 +83,7 @@ Projet::Projet():m_heat(), m_ns(), m_sortie()
 
 
         m_heat.init(m_mesh, m_modele);
-        if( (m_modele==modele2) || (m_modele==modele3))
+        if( (m_modele== modele2) || (m_modele== modele3))
             m_ns.init(m_mesh, m_modele);
 
     toc("init system");
@@ -99,13 +99,12 @@ Projet::Projet():m_heat(), m_ns(), m_sortie()
 
 void Projet::run()
 {
-    Feel::cout << "marqueur 0\n";
     if(boption("Time.time"))
         //if( (m_modele == modele0) || (m_modele == modele1) )
         //    run_dynamic_no_fluid();
         //else
         //    run_dynamic_fluid();
-        Feel::cout<<"on ne fait pas dans le temps\n";
+        Feel::cout<< "on ne fait pas dans le temps\n";
     else
     {
         run_static();
@@ -131,11 +130,9 @@ void Projet::run_static()
     auto Q= expr(soption("Proc.Q"));
     // estimation de la convection
     
-    Feel::cout << "marqueur 0bis\n";
     tic();
-    auto bilinear_heat= form2(_test=m_heat.Th, _trial= m_heat.Th,_matrix=m_heat.matrix);
-    auto linear_heat=form1(_test=m_heat.Th,_vector=m_heat.vector);
-    Feel::cout << "marqueur 1\n";
+    auto bilinear_heat= form2(_test= m_heat.Th, _trial= m_heat.Th,_matrix= m_heat.matrix);
+    auto linear_heat= form1(_test= m_heat.Th,_vector= m_heat.vector);
     m_heat.init_matrix(bilinear_heat,linear_heat);
     
 
@@ -143,38 +140,68 @@ void Projet::run_static()
     { // the implementation of the flow is the heat equation
         auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
 
-        Feel::cout << "marqueur 2\n";
         if(m_modele == modele1)
         {
             m_heat.beta.on(
                     _range= elements(m_heat.m_mesh), //markedelements(m_heat.m_mesh, "AIR"), 
                     _expr= beta
                     ); 
-            toc("...");
+            toc("create flow");
         }
         else
         {//avec equation des m_fluides
             
-            Feel::cout << "marqueur 3\n";
-            auto bilinear_fluid= form2(_test=m_ns.Vph, _trial= m_ns.Vph,_matrix=m_ns.matrix); 
-            auto linear_fluid= form1(_test=m_ns.Vph, _vector=m_ns.vector); 
-            m_ns.init_matrix(bilinear_fluid, linear_fluid);
 
             
-    Feel::cout << "marqueur 4\n";
             auto flowToConv= opInterpolation(
                     _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(), 
                     _imageSpace= m_heat.beta.functionSpace()
                     );
-            toc("create flow");
-            
+            toc("init flow");
+
 
             tic();
-            if( m_modele==modele2)
+            if( m_modele== modele2)
+            {
+                auto bilinear_fluid= form2(_test= m_ns.Vph, _trial= m_ns.Vph,_matrix= m_ns.matrix); 
+                auto linear_fluid= form1(_test= m_ns.Vph, _vector= m_ns.vector); 
+                m_ns.init_matrix(bilinear_fluid, linear_fluid);
+                
                 m_ns.run(beta);
+            }
             else
             {
-                m_ns.run(beta);
+                auto bilinear_fluid_tmp= form2(_test= m_ns.Vph, _trial= m_ns.Vph,_matrix= m_ns.matrix); 
+                auto linear_fluid_tmp= form1(_test= m_ns.Vph, _vector= m_ns.vector);
+
+                auto bilinear_fluid= form2(_test= m_ns.Vph, _trial= m_ns.Vph); 
+                auto linear_fluid= form1(_test= m_ns.Vph); 
+                m_ns.init_matrix(bilinear_fluid, linear_fluid);
+
+                auto tmp= m_ns.Vph->element();
+                tmp.zero();
+                
+                bool continu=true;
+                for(int i= 0;(i<2) && continu;i++)
+                {
+                    bilinear_fluid_tmp= bilinear_fluid;
+                    linear_fluid_tmp= linear_fluid;
+                    
+                    double error= m_ns.run_picard(tmp, beta); 
+                    Feel::cout<< "error picard : " << error << "\n";
+                    if(error < 1e-7)
+                        continu=false;
+                }
+                for(int i =0;(i<7) && continu;i++)
+                {
+                    bilinear_fluid_tmp= bilinear_fluid;
+                    linear_fluid_tmp= linear_fluid;
+                    
+                    double error= m_ns.run_newton(tmp, beta); 
+                    Feel::cout<< "error newton : " << error << "\n";
+                    if(error < 1e-7)
+                        continu=false;
+                }
             }
             flowToConv->apply(
                     m_ns.m_fluidt.element<0>(), 
@@ -221,11 +248,11 @@ void Projet::run_static()
 
 
 
-#if 0
+
 void Projet::run_dynamic_no_fluid()
 {
     // stockage des temperature au cour du temps
-    
+
     auto Q= expr(soption("Proc.Q"));
     double dt= doption("Time.dt");
     double Tfinal= doption("Time.Tfinal");
@@ -236,13 +263,11 @@ void Projet::run_dynamic_no_fluid()
             );
 
     auto bilinear_static= form2(_test= m_heat.Th, _trial= m_heat.Th);
-    auto bilinear= form2(_test= m_heat.Th, _trial= m_heat.Th, _matrix= m_heat.matrix);
-
-    auto linear_static= form1( _test= m_heat.Th);
-    auto linear= form1(_test= m_heat.Th, _vector= m_heat.vector);
-
+    auto linear_static= form1(_test= m_heat.Th);
     m_heat.init_matrix(bilinear_static, linear_static);
 
+    auto bilinear= form2(_test= m_heat.Th, _trial= m_heat.Th, _matrix= m_heat.matrix);
+    auto linear= form1(_test= m_heat.Th, _vector= m_heat.vector);
 
     // cas du m_modele sans refroidissement
     if(m_modele == modele0)
@@ -260,7 +285,6 @@ void Projet::run_dynamic_no_fluid()
 
             m_heat.uPrec= m_heat.ut;
             add_sortie(t);
-
         }
     }
     else
@@ -296,6 +320,7 @@ void Projet::run_dynamic_no_fluid()
     affiche_sortie();
 }
 
+#if 0
 void Projet::run_dynamic_fluid()
 {
 
@@ -305,11 +330,11 @@ void Projet::run_dynamic_fluid()
     double error;
 
     tic();
-    auto lin_fluid= form1(_test= m_ns.Vph,_vector=m_ns.vector);
+    auto lin_fluid= form1(_test= m_ns.Vph,_vector= m_ns.vector);
     auto bil_fluid= form2(_test= m_ns.Vph, _trial= m_ns.Vph, _matrix= m_ns.matrix);
 
-    auto lin_heat= form1(_test= m_heat.Th, _vector=m_heat.vector);
-    auto bil_heat= form2(_test= m_heat.Th, _trial= m_heat.Th, _matrix=m_heat.matrix);
+    auto lin_heat= form1(_test= m_heat.Th, _vector= m_heat.vector);
+    auto bil_heat= form2(_test= m_heat.Th, _trial= m_heat.Th, _matrix= m_heat.matrix);
 
     auto lin_fluid_static= form1(_test= m_ns.Vph);
     auto bil_fluid_static= form2(_test= m_ns.Vph, _trial= m_ns.Vph);
@@ -343,14 +368,14 @@ void Projet::run_dynamic_fluid()
 
         tic();
         //tmp.element<0>().on(_range= elements(m_ns.m_mesh), _expr= zero<FEELPP_DIM, 1>());
-        tmp=m_ns.m_fluidPrec;
+        tmp= m_ns.m_fluidPrec;
         for(int i= 0;i<2;i++)
         {
             bil_fluid= bil_fluid_static;
             lin_fluid= lin_fluid_static;
 
             //auto expr_temp= m_ns.m_rho * inner(idv(m_ns.m_fluidPrec.element<0>()), idt(m_ns.m_fluidt.element<0>()))/dt;
-            //lin_fluid+=integrate(
+            //lin_fluid+= integrate(
             //        _range= elements(m_ns.m_mesh),
             //        _expr= expr_temp
             //        );
@@ -360,14 +385,14 @@ void Projet::run_dynamic_fluid()
         }
 
         double error= 1;
-        bool test_newton=true;
+        bool test_newton= true;
         for(int i= 0;i<13 && test_newton;i++)
         {
             bil_fluid= bil_fluid_static;
             lin_fluid= lin_fluid_static;
 
             //auto expr_temp= m_ns.m_rho * inner(idv(m_ns.m_fluidPrec.element<0>()), idt(m_ns.m_fluidt.element<0>()))/dt;
-            //lin_fluid+=integrate(
+            //lin_fluid+= integrate(
             //        _range= elements(m_ns.m_mesh),
             //        _expr= expr_temp
             //        );
@@ -375,7 +400,7 @@ void Projet::run_dynamic_fluid()
 
             error= m_ns.run_newton( tmp, beta, dt);// NE MARCHE PAS
             if(error < 1e-8)
-                test_newton=false;
+                test_newton= false;
             else
                 Feel::cout << "--> error= " << error << "\n";
         }
@@ -403,7 +428,7 @@ void Projet::run_dynamic_fluid()
         expCase->save();
 
         add_sortie(t);
-        
+
         std::ostringstream ostr_time;
         ostr_time << "time : " << std::setprecision(3) << t << " s";
         toc(ostr_time.str());
@@ -472,7 +497,9 @@ void Projet::affiche_parametre()
         Feel::cout
             << "\n\t|== FLUID PARAMETER ================== "
             << "\n\t|rho    : " << doption("Air.rho") << " kg/m^3"
-            << "\n\t|mu     : " << doption("Air.mu") << " kg/m/s";
+            << "\n\t|mu     : " << doption("Air.mu") << " kg/m/s"
+            << "\n\t|Re/D   : " << doption("Geo.hPCB")/doption("Geo.eAIR")*doption("Air.rho")/doption("Air.mu");
+            ;
     Feel::cout
         << "\n\t|===================================== "
         << "\n\t|Tamb   : " << doption("Modele.Tamb") << " K"

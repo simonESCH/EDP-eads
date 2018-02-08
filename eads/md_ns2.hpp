@@ -120,10 +120,10 @@ template<typename bilinear_type, typename linear_type>
         void run(myexpr_type D);
 
     template<typename myexpr_type>
-void run_picard(element_fluid_type & tmp, myexpr_type flow, double dt, double maxError= 1e-3);
+double run_picard(element_fluid_type & tmp, myexpr_type flow);
     
     template<typename myexpr_type>
-double run_newton(element_fluid_type & tmp, myexpr_type flow, double dt, double maxError= 1e-3);
+double run_newton(element_fluid_type & tmp, myexpr_type flow);
     
     template<typename F>
 void run(F flow, double dt);
@@ -224,11 +224,9 @@ void NavierStokes::build_time_linear(linear_type & linear, double dt)
 
 
     template<typename myexpr_type>
-void NavierStokes::run_picard(
+double NavierStokes::run_picard(
         element_fluid_type & tmp, 
-        myexpr_type flow, 
-        double dt, 
-        double maxError
+        myexpr_type flow 
         )
 {
     auto v= m_fluid.element<0>();
@@ -239,20 +237,20 @@ void NavierStokes::run_picard(
     auto bilinear= form2(_test= Vph, _trial= Vph, _matrix= matrix);
 
 
-    auto autoconv= trans(idv(u_tmp))*gradv(u);//picard
+    auto autoconv= trans(idt(u))*gradv(u_tmp);//picard
     bilinear+= integrate(
             _range= elements(m_mesh), 
-            _expr= m_rho * autoconv * id(v) // CONDITION AU BORD !!!!!!!!!!!!!!!!!!!!!!
+            _expr= m_rho * autoconv * id(v) 
             );
 
-    bilinear+= on(//2
+    bilinear+= on(// entry of the flow: condition of dirichlet
             _range= markedfaces(m_mesh, {"in1", "in2"}), 
             _rhs= linear, 
             _element= u, 
             _expr= flow
             );
 
-    bilinear+= on(
+    bilinear+= on(// condition on the wall
             _range= markedfaces(m_mesh, {"borderFluid", "wall"}), 
             _rhs= linear, 
             _element= u, 
@@ -264,15 +262,23 @@ void NavierStokes::run_picard(
             _matrix= matrix, 
             _rhs= vector
             );
+    
+    double error= normL2(
+            _range= elements(m_mesh), 
+            _expr= idv(u_tmp)-idv(u)
+            );
+    
     u_tmp= u;
+    return error;
 }
+
+
+
 
     template<typename myexpr_type>
 double NavierStokes::run_newton(
         element_fluid_type & tmp, 
-        myexpr_type flow, 
-        double dt, 
-        double maxError)
+        myexpr_type flow)
 {
     auto v= m_fluid.element<0>();
     auto u= m_fluidt.element<0>();
@@ -281,10 +287,9 @@ double NavierStokes::run_newton(
     auto linear= form1(_test= Vph, _vector= vector);
     auto bilinear= form2(_test= Vph, _trial= Vph, _matrix= matrix);
 
-    auto autoconv= trans(idv(u_tmp))*gradt(u);//picard
-    //auto autoconv= trans(idv(u_tmp))*gradt(u) + 
-    //                trans(idt(u))*gradv(u_tmp);//newton
-    //auto autoconv_lin= trans(idv(u_tmp))*gradv(u_tmp);
+    auto autoconv= trans(idv(u_tmp))*gradt(u) + 
+                    trans(idt(u))*gradv(u_tmp);//newton
+    auto autoconv_lin= trans(idv(u_tmp))*gradv(u_tmp);
 
     bilinear+= integrate(
             _range= elements(m_mesh), 

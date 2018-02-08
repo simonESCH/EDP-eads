@@ -24,19 +24,19 @@ typedef Simplex<FEELPP_DIM> M_type;
 
 //// metode utlisation
 // Heat heat;
-// auto bilinear= form2(_test=heat.Th, _trial= heat.Th,_matrix=heat.matrix);
+// auto bilinear= form2(_test=heat.Th, _trial= heat.Th, _matrix=heat.matrix);
 // auto linear= form1(test=heat.Th, _vector= heat.vector);
-// heat.init(bilinear,linear);
+// heat.init(bilinear, linear);
 // heat.run(...);
 //
 // ou
 //
 // Heat heat;
-// auto bilinear= form2(_test=heat.Th, _trial= heat.Th,_matrix=heat.matrix);
+// auto bilinear= form2(_test=heat.Th, _trial= heat.Th, _matrix=heat.matrix);
 // auto linear= form1(test=heat.Th, _vector= heat.vector);
 // auto bilinear_static= form2(_test=heat.Th, _trial= heat.Th);
 // auto linear_static= form1(test=heat.Th);
-// heat.init(bilinear_static,linear_static);
+// heat.init(bilinear_static, linear_static);
 // while()
 // {
 //      bilinear.zero()
@@ -143,7 +143,7 @@ class Heat
         void build_heat_stab(bilinear_type & bilinear, linear_type & linear, myexpr_type Q);
 
     template<typename bilinear_type, typename linear_type>
-        void init_matrix(bilinear_type & bilinear,linear_type & linear);
+        void init_matrix(bilinear_type & bilinear, linear_type & linear);
 
     template<typename expr_type>
         void run(expr_type Q, double dt);
@@ -379,7 +379,7 @@ void Heat::init_matrix(bilinear_type & bilinear, linear_type & linear)
 }
 
 //template<typename bilinear_type, typename linear_type>
-//void update(bilinear_type & bilinear,linear_type & linear)
+//void update(bilinear_type & bilinear, linear_type & linear)
 //{
 //    matrix.
 //}
@@ -390,17 +390,12 @@ void Heat::init_matrix(bilinear_type & bilinear, linear_type & linear)
 
 // RUN //
     template<typename myexpr_type>
-void Heat::run(myexpr_type Q,double dt)
+void Heat::run(myexpr_type Q, double dt)
 {
-    tic();
     //double dt= doption("Time.time");
 
-    tic();
-    auto linear= form1(_test= Th, _matrix= matrix);
-    auto bilinear= form2(_test= Th, _trial= Th, _vector=vector);
-    toc("init bil/lin");
-
-    toc();
+    auto linear= form1(_test= Th, _vector= vector);
+    auto bilinear= form2(_test= Th, _trial= Th, _matrix=matrix);
 
     tic();
     linear+= integrate(
@@ -428,7 +423,7 @@ void Heat::run(myexpr_type Q,double dt)
                 );
 
         bilinear+= integrate( // terme de reaction
-                _range= elements(m_mesh),
+                _range= elements(m_mesh), 
                 _expr= idv(m_rc) * id(u) * idt(ut)/dt
                 );
     }
@@ -447,12 +442,11 @@ void Heat::run(myexpr_type Q,double dt)
 
     tic();
     m_backend->solve(
-            _solution= ut,
-            _matrix=matrix,
+            _solution= ut, 
+            _matrix=matrix, 
             _rhs=vector
             );
     toc("  solve  ");   
-    toc("HEAT");
 }
 
 
@@ -471,8 +465,9 @@ void Heat::run(myexpr_type Q,double dt)
     template<typename myexpr_type>
 void Heat::run( myexpr_type Q)
 {
-    Feel::cout << "marqueur heat 1\n";
-    run(Q,0);
+    tic();
+    run(Q, 0);
+    toc("run heat");
 }
 
 
