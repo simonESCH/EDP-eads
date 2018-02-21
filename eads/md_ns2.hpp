@@ -94,7 +94,9 @@ class NavierStokes
 
     //matrix
     matrix_ptrtype matrix;
+    matrix_ptrtype matrix_static;
     vector_ptrtype vector;
+    vector_ptrtype vector_static;
 
 
 
@@ -107,31 +109,25 @@ class NavierStokes
     void init_fluid();
 
 
-template<typename bilinear_type, typename linear_type>
-    void init_matrix(bilinear_type & bilinear, linear_type & linear);
+    void init_matrix();
 
-    template<typename L>
-        void build_time_linear(L & linear, double dt);
+    void build_time_linear(double dt);
 
-    template<typename B, typename V>
-        void build_fluid_dynamic_bilinear(B & bilinear, V velocity_test, V velocity_trial, V velocity_loop);
+    void reset_dynamic();
+
 
     template<typename myexpr_type>
         void run(myexpr_type D);
 
     template<typename myexpr_type>
-double run_picard(element_fluid_type & tmp, myexpr_type flow);
-    
+        double run_picard(element_fluid_type & tmp, myexpr_type flow);
+
     template<typename myexpr_type>
-double run_newton(element_fluid_type & tmp, myexpr_type flow);
-    
+        double run_newton(element_fluid_type & tmp, myexpr_type flow);
+
     template<typename F>
-void run(F flow, double dt);
+        void run(F flow, double dt);
 
-template<typename E>
-        void init_beta(E expr);
-
-    double get_error_Lu();
 
 };
 
@@ -163,9 +159,14 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
     m_backend= backend(_name= "backend_fluid");
     matrix= m_backend->newMatrix(Vph, Vph);
     vector= m_backend->newVector(Vph);
-    
+    matrix_static= m_backend->newMatrix(Vph, Vph);
+    vector_static= m_backend->newVector(Vph);
+
     matrix->zero();
     vector->zero();
+    matrix_static->zero();
+    vector_static->zero();
+    init_matrix();
 }
 
 
@@ -178,25 +179,36 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
 /// \brief add to the bilinear form the static part
 /// \f$ += \int_\Omega \bigl(\frac{\nabla u+\nabla u^T}{2}\bigl):\nabla v\f$
 /// \f$ += \int_\Omega q\nabla u+p\nabla v\f$
-template<typename bilinear_type, typename linear_type>
-void NavierStokes::init_matrix(bilinear_type & bilinear, linear_type & linear)
+void NavierStokes::init_matrix()
 {
     tic();
-    bilinear.zero();
-    linear.zero();
+    auto bilinear= form2(_test= Vph,_trial= Vph, _matrix= matrix_static);
+    auto linear= form1(_test= Vph, _vector= vector_static);
 
     auto v= m_fluid.template element<0>();
     auto u= m_fluidt.template element<0>();
     auto q= m_fluid.template element<1>();
     auto p= m_fluidt.template element<1>();
+    
+    auto deft= sym(gradt(u));
+    auto Id= eye<FEELPP_DIM,FEELPP_DIM>();
+    auto sigmat= -idt(p)*Id + 2*m_mu*deft;
 
-    auto expr_diffusion= inner(grad(v), gradt(u));//inner(sym(gradt(u)), grad(v));
-    auto expr_pressure= id(q)*divt(u)-idt(p)*div(v);
+    //auto expr_diffusion= inner(grad(v), deft);//inner(sym(u), grad(v));
+    //auto expr_pressure= id(q)*divt(u)-idt(p)*div(v);
 
+    //bilinear+= integrate(
+    //        _range= elements(m_mesh), 
+    //        _expr= m_mu*expr_diffusion
+    //        + expr_pressure
+    //        );
     bilinear+= integrate(
-            _range= elements(m_mesh), 
-            _expr= m_mu*expr_diffusion
-                +expr_pressure
+            _range= elements(m_mesh),
+            _expr=inner(sigmat,grad(v))
+            );
+    bilinear+= integrate(
+            _range= elements(m_mesh),
+            _expr= m_rho* divt(u)*id(q)
             );
 
     if(boption("Time.time"))
@@ -204,15 +216,28 @@ void NavierStokes::init_matrix(bilinear_type & bilinear, linear_type & linear)
                 _range= elements(m_mesh), 
                 _expr= m_rho/doption("Time.dt")*inner(idt(u), id(v))
                 );
-    toc("NS static  ");
+    toc("matrix static");
 }
 
 
-    template<typename linear_type>
-void NavierStokes::build_time_linear(linear_type & linear, double dt)
+void NavierStokes::reset_dynamic()
 {
+    matrix->zero();
+    matrix->addMatrix(1,matrix_static);
+    vector->zero();
+    vector=vector_static;
+}
+
+
+
+
+
+void NavierStokes::build_time_linear(double dt)
+{
+    auto linear= form1(_test= Vph, _vector= vector);
     auto v= m_fluid.element<0>();
     auto uPrec= m_fluidPrec.element<0>();
+
     linear+= integrate(
             _range= elements(m_mesh), 
             _expr= m_rho * inner(id(v), idv(uPrec))/dt
@@ -260,14 +285,15 @@ double NavierStokes::run_picard(
     m_backend->solve(
             _solution= m_fluidt, 
             _matrix= matrix, 
-            _rhs= vector
+            _rhs= vector//,
+            //_rebuild=true
             );
-    
+
     double error= normL2(
             _range= elements(m_mesh), 
             _expr= idv(u_tmp)-idv(u)
             );
-    
+    //Feel::cout << "azer :: " << normL2(_range= elements(m_mesh), _expr= idv(u)) << "\n";
     u_tmp= u;
     return error;
 }
@@ -286,14 +312,15 @@ double NavierStokes::run_newton(
 
     auto linear= form1(_test= Vph, _vector= vector);
     auto bilinear= form2(_test= Vph, _trial= Vph, _matrix= matrix);
-
-    auto autoconv= trans(idv(u_tmp))*gradt(u) + 
-                    trans(idt(u))*gradv(u_tmp);//newton
-    auto autoconv_lin= trans(idv(u_tmp))*gradv(u_tmp);
+    
+    auto autoconv= gradt(u)*idv(u_tmp); 
+    //auto autoconv= trans(idv(u_tmp))*gradt(u) + 
+    //    trans(idt(u))*gradv(u_tmp);//newton
+    //auto autoconv_lin= trans(idv(u_tmp))*gradv(u_tmp);
 
     bilinear+= integrate(
             _range= elements(m_mesh), 
-            _expr= m_rho * autoconv * id(v)
+            _expr= m_rho * inner(autoconv,id(v))//m_rho * autoconv * id(v)
             );
 
     //linear+= integrate(
@@ -344,10 +371,11 @@ void NavierStokes::run(myexpr_type flow, double dt)
     auto linear= form1(_test= Vph, _vector= vector);
     auto bilinear= form2(_test= Vph, _trial= Vph, _matrix= matrix);
 
-    linear+= integrate(// terme de memoire
-            _range= elements(m_mesh), 
-            _expr= m_rho/dt*inner(idv(uPrec), id(v))
-            );
+    //linear+= integrate(// terme de memoire
+    //        _range= elements(m_mesh), 
+    //        _expr= m_rho/dt*inner(idv(uPrec), id(v))
+    //        );
+    build_time_linear(dt);
 
     bilinear+= on(// flow d'entree
             _range= markedfaces(m_mesh, {"in1", "in2"}), 
@@ -375,17 +403,7 @@ void NavierStokes::run(myexpr_type flow, double dt)
     template<typename myexpr_type>
 void NavierStokes::run(myexpr_type flow)
 {
-    auto bilinear= form2(
-            _test= Vph, 
-            _trial= Vph, 
-            _matrix= matrix
-            );
-    auto linear= form1(
-            _test= Vph, 
-            _vector= vector
-            );
-
-    init_matrix(bilinear, linear);
+    reset_dynamic(); 
     run(flow,-1);
 
 }

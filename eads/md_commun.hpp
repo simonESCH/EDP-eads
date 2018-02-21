@@ -94,6 +94,8 @@ makeOptions()
          "choisis entre avec dependance en temps ou non")
         ("Time.dt", po::value<double>()->default_value(.1), 
          "increment de temps")
+        ("Time.save", po::value<double>()->default_value(-1), 
+         "increment de temps into two save")
         ("Time.Tfinal", po::value<double>()->default_value(1), 
          "temps de la simulation")
 
@@ -249,21 +251,21 @@ createGMSH()
         << "Point(1)    = {0, 0, 0, h};\n"
         << "Point(2)    = {ePCB, 0, 0, h};\n"
         << "Point(3)    = {ePCB, h1, 0, h};\n"
-        << "Point(4)    = {ePCB, h1+hIC, 0, h/2};\n"
+        << "Point(4)    = {ePCB, h1+hIC, 0, h};\n"
         << "Point(5)    = {ePCB, h2, 0, h};\n"
-        << "Point(6)    = {ePCB, h2+hIC, 0, h/2};\n"
+        << "Point(6)    = {ePCB, h2+hIC, 0, h};\n"
         << "Point(7)    = {ePCB, hPCB, 0, h/2};\n"
         << "Point(8)    = {0, hPCB, 0, h};\n"
         << "\n"
         << "// other corner of processors\n"
-        << "Point(9)    = {ePCB+eIC, h1, 0, h/2};\n"
-        << "Point(10)   = {ePCB+eIC, h1+hIC, 0, h/2};\n"
-        << "Point(11)   = {ePCB+eIC, h2, 0, h/2};\n"
-        << "Point(12)   = {ePCB+eIC, h2+hIC, 0, h/2};\n"
+        << "Point(9)    = {ePCB+eIC, h1, 0, h};\n"
+        << "Point(10)   = {ePCB+eIC, h1+hIC, 0, h};\n"
+        << "Point(11)   = {ePCB+eIC, h2, 0, h};\n"
+        << "Point(12)   = {ePCB+eIC, h2+hIC, 0, h};\n"
         << "\n"
         << "// other corner of the areation\n"
         << "Point(13)   = {ePCB+eAIR, 0, 0, h};\n"
-        << "Point(14)   = {ePCB+eAIR, hPCB, 0, h/2};\n"
+        << "Point(14)   = {ePCB+eAIR, hPCB, 0, h};\n"
         << "Point(15)   = {ePCB+eIC, 0, 0, h};\n"
         << "\n"
         << "//______line __________________________________________\n"

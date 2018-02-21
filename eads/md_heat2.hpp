@@ -24,25 +24,14 @@ typedef Simplex<FEELPP_DIM> M_type;
 
 //// metode utlisation
 // Heat heat;
-// auto bilinear= form2(_test=heat.Th, _trial= heat.Th, _matrix=heat.matrix);
-// auto linear= form1(test=heat.Th, _vector= heat.vector);
-// heat.init(bilinear, linear);
 // heat.run(...);
 //
 // ou
 //
 // Heat heat;
-// auto bilinear= form2(_test=heat.Th, _trial= heat.Th, _matrix=heat.matrix);
-// auto linear= form1(test=heat.Th, _vector= heat.vector);
-// auto bilinear_static= form2(_test=heat.Th, _trial= heat.Th);
-// auto linear_static= form1(test=heat.Th);
-// heat.init(bilinear_static, linear_static);
 // while()
 // {
-//      bilinear.zero()
-//      linear.zero()
-//      bilinear+=bilinear_static
-//      linear+=linear_static
+//      heat.reset_dynamic()
 //      heat.run(...);
 // }
 // 
@@ -131,7 +120,9 @@ class Heat
 
     //matrix
     matrix_ptrtype matrix;
+    matrix_ptrtype matrix_static;
     vector_ptrtype vector;
+    vector_ptrtype vector_static;
 
 
 
@@ -139,11 +130,12 @@ class Heat
     // private function
 
 
-    template<typename bilinear_type, typename linear_type, typename myexpr_type>
-        void build_heat_stab(bilinear_type & bilinear, linear_type & linear, myexpr_type Q);
+template<typename myexpr_type>
+        void build_heat_stab(myexpr_type Q);
 
-    template<typename bilinear_type, typename linear_type>
-        void init_matrix(bilinear_type & bilinear, linear_type & linear);
+        void init_matrix();
+
+        void reset_dynamic();
 
     template<typename expr_type>
         void run(expr_type Q, double dt);
@@ -240,12 +232,35 @@ void Heat::init_heat()
 
     m_backend= backend(_name="backend_heat");
     matrix= m_backend->newMatrix(Th, Th);
+    matrix_static= m_backend->newMatrix(Th, Th);
+
     vector= m_backend->newVector(Th);
+    vector_static= m_backend->newVector(Th);
 
     matrix->zero();
+    matrix_static->zero();
     vector->zero();
+    vector_static->zero();
+    init_matrix();
 
     toc("Th/Th_vect");
+}
+
+//! \fn init_matrix
+//! \brief build the matrix matrix for the term with no-time dependance
+void Heat::init_matrix()
+{
+
+    auto linear=form1(_test=Th, _vector=vector_static);
+    auto bilinear=form2(_test=Th, _trial=Th, _matrix=matrix_static);
+
+    linear.zero();
+    bilinear.zero();
+
+    bilinear+= integrate(
+            _range= elements(m_mesh), 
+            _expr= idv(m_k) * inner(grad(u), gradt(ut))
+            );// diffusion of heat
 }
 
 
@@ -303,7 +318,24 @@ double Heat::get_error_Lu()
 
 
 
+void Heat::reset_dynamic()
+{
+    matrix->zero();
+    vector->zero();
 
+    auto bilinear_static=form2(_test=Th ,_trial=Th ,_matrix=matrix_static);
+    auto bilinear=form2(_test=Th ,_trial=Th ,_matrix=matrix);
+    bilinear+=bilinear_static;
+
+    auto linear_static=form1(_test=Th ,_trial=Th ,_vector=vector_static);
+    auto linear=form1(_test=Th ,_trial=Th ,_vector=vector);
+    linear+=linear_static;
+    //matrix->zero();
+    //vector->zero();
+
+    //matrix+= matrix_static;
+    //vector+= vector_static;
+}
 
 
 
@@ -314,69 +346,37 @@ double Heat::get_error_Lu()
 
 //! \fn build_heat_bilinear_stab
 //! \brief use method of Galerkin Least Square for stabilise the system
-    template<typename bilinear_type, typename linear_type, typename myexpr_type>
-void Heat::build_heat_stab(bilinear_type & bilinear, linear_type & linear, myexpr_type Q)
+    template<typename myexpr_type>
+void Heat::build_heat_stab(myexpr_type Q)
 {
     tic();
     // forme bilineaire de notre probleme
-
-    if(boption("Time.time"))
-    {
-        auto L= -idv(m_k)*laplacian(u) + idv(m_rc)*( grad(u)*idv(beta) ) + idv(m_rc)*id(u)/doption("Time.dt");
-        auto Lt= -idv(m_k)*laplaciant(ut) +  idv(m_rc) * ( gradt(ut)*idv(beta) ) + idv(m_rc)*idt(ut)/doption("Time.dt"); 
-        auto f = Q + idv(m_rc)*idv(uPrec)/doption("Time.dt");
-
-        auto delta= doption("Modele.epsilon") * cst(1.)/( 1./h() + idv(m_k)/(h()*h()) );
-
-        bilinear+=integrate(
-                _range= elements(m_mesh), 
-                _expr= delta*L*Lt
-                );    
-
-        linear+=integrate(
-                _range= markedelements(m_mesh, {"IC1", "IC2"}), 
-                _expr= delta*L*f
-                );
-    }
-    else
-    {
-
-        auto L= -idv(m_k)*laplacian(u) + idv(m_rc)*( grad(u)*idv(beta) );
-        auto Lt= -idv(m_k)*laplaciant(ut) +  idv(m_rc) * ( gradt(ut)*idv(beta) );
-        auto f=Q;
+    auto bilinear=form2(_test= Th, _trial= Th, _matrix= matrix);
+    auto linear=form1(_test= Th, _vector= vector);
 
 
-        auto delta= doption("Modele.epsilon") * cst(1.)/( 1./h() + idv(m_k)/(h()*h()) );
 
-        bilinear+=integrate(
-                _range= elements(m_mesh), 
-                _expr= delta*L*Lt
-                );    
+    auto L= -idv(m_k)*laplacian(u) + idv(m_rc)*( grad(u)*idv(beta) );
+    auto Lt= -idv(m_k)*laplaciant(ut) +  idv(m_rc) * ( gradt(ut)*idv(beta) );
+    auto f=Q;
 
-        linear+=integrate(
-                _range= markedelements(m_mesh, {"IC1", "IC2"}), 
-                _expr= delta*L*f
-                );
-    }
+
+    auto delta= doption("Modele.epsilon") * cst(1.)/( 1./h() + idv(m_k)/(h()*h()) );
+
+    bilinear+=integrate(
+            _range= elements(m_mesh), 
+            _expr= delta*L*Lt
+            );    
+
+    linear+=integrate(
+            _range= markedelements(m_mesh, {"IC1", "IC2"}), 
+            _expr= delta*L*f
+            );
     toc("stabilisation");
 }
 
 
 
-
-//! \fn init_matrix
-//! \brief build the matrix matrix for the term with no-time dependance
-    template<typename bilinear_type, typename linear_type>
-void Heat::init_matrix(bilinear_type & bilinear, linear_type & linear)
-{
-
-    linear.zero();
-    bilinear.zero();
-    bilinear+= integrate(
-            _range= elements(m_mesh), 
-            _expr= idv(m_k) * inner(grad(u), gradt(ut))
-            );// diffusion of heat
-}
 
 //template<typename bilinear_type, typename linear_type>
 //void update(bilinear_type & bilinear, linear_type & linear)
@@ -395,7 +395,7 @@ void Heat::run(myexpr_type Q, double dt)
     //double dt= doption("Time.time");
 
     auto linear= form1(_test= Th, _vector= vector);
-    auto bilinear= form2(_test= Th, _trial= Th, _matrix=matrix);
+    auto bilinear= form2(_test= Th, _trial= Th, _matrix= matrix);
 
     tic();
     linear+= integrate(
@@ -412,7 +412,7 @@ void Heat::run(myexpr_type Q, double dt)
                 );//convection of the heat
 
         if(boption("Modele.GaLS"))
-            build_heat_stab(bilinear, linear, Q);
+            build_heat_stab(Q);
     }
 
     if(boption("Time.time"))
@@ -466,6 +466,7 @@ void Heat::run(myexpr_type Q, double dt)
 void Heat::run( myexpr_type Q)
 {
     tic();
+    reset_dynamic();
     run(Q, 0);
     toc("run heat");
 }

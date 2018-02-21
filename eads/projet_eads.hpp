@@ -48,7 +48,7 @@ class Projet
     void run_static();
     void run_dynamic_fluid();
     void run_dynamic_no_fluid();
-    
+
 
 };
 
@@ -67,7 +67,7 @@ Projet::Projet():m_heat(), m_ns(), m_sortie()
 
     if( (m_modele == modele3) && !boption("Time.time") )
     {
-        Feel::cerr<< "le modele3 est forcement dépendant du temps\n";
+        Feel::cerr << "le modele3 est forcement dépendant du temps\n";
         exit(1);
     }
 
@@ -136,7 +136,7 @@ void Projet::run_static()
                     _range= elements(m_heat.m_mesh), //markedelements(m_heat.m_mesh, "AIR"), 
                     _expr= beta
                     ); 
-            Feel::cout<< "convection modele1\n";
+            Feel::cout << "convection modele1\n";
         }
         else
         {//avec equation des m_fluides
@@ -155,7 +155,7 @@ void Projet::run_static()
                     m_ns.m_fluidt.element<0>(), 
                     m_heat.beta
                     );
-            Feel::cout<< "convection modele2\n";
+            Feel::cout << "convection modele2\n";
             toc("Fluid");
         }
     }
@@ -281,10 +281,10 @@ void Projet::run_dynamic_no_fluid()
                         _expr= beta
                         );
                 m_heat.run(bilinear, linear, Q, dt);
-                
+
                 expCase->step(t)->add("heat", m_heat.ut);
                 expCase->save();
-                
+
                 m_heat.u_tmp= m_heat.ut;
 
 
@@ -330,11 +330,11 @@ void Projet::run_dynamic_fluid()
     // stockage des temperature au cour du temps
     //std::ostringstream ostr_heat;
     //ostr_heat
-    //    << std::setw(15) << "time"
-    //    << std::setw(15) << "temp_IC1"
-    //    << std::setw(15) << "temp_IC2"
-    //    << std::setw(15) << "temp_out" 
-    //    << "\n";
+    // << std::setw(15) << "time"
+    // << std::setw(15) << "temp_IC1"
+    // << std::setw(15) << "temp_IC2"
+    // << std::setw(15) << "temp_out" 
+    // << "\n";
 
     auto Q= expr(soption("Proc.Q"));
     double dt= doption("Time.dt");
@@ -402,7 +402,7 @@ void Projet::run_dynamic_fluid()
         {
             bil_fluid= bil_fluid_static;
             lin_fluid= lin_fluid_static;
-            
+
             //auto expr_temp= m_ns.m_rho * inner(idv(m_ns.m_fluidPrec.element<0>()), idt(m_ns.m_fluidt.element<0>()))/dt;
             //lin_fluid+=integrate(
             //        _range= elements(m_ns.m_mesh),
@@ -442,15 +442,15 @@ void Projet::run_dynamic_fluid()
 
         add_sortie(t);
         //ostr_heat << std::scientific
-        //    << std::setw(15) << t
-        //    << std::setw(15) << m_heat.get_heat_IC1()
-        //    << std::setw(15) << m_heat.get_heat_IC2()
-        //    << std::setw(15) << m_heat.get_heat_out()
-        //    << "\n";
+        // << std::setw(15) << t
+        // << std::setw(15) << m_heat.get_heat_IC1()
+        // << std::setw(15) << m_heat.get_heat_IC2()
+        // << std::setw(15) << m_heat.get_heat_out()
+        // << "\n";
         std::ostringstream ostr_time;
         ostr_time << "time : " << std::setprecision(3) << t << " s";
         toc(ostr_time.str());
-        Feel::cout<< "\n";
+        Feel::cout << "\n";
     }
 
 
@@ -471,7 +471,7 @@ void Projet::run_dynamic_fluid()
     //    if(file)
     //    {
     //        Feel::cout << "the evolution of the heat is in the file :"
-    //            << "heat_evolution.dat" << "\n";
+    // << "heat_evolution.dat" << "\n";
     //        file << ostr_heat.str();
     //        file.close();
     //    }
@@ -515,8 +515,8 @@ void Projet::affiche_sortie()
         }
         else
             std::cerr << "le fichier \"" 
-            << "heat_evolution.dat"
-            << "\" n'a pas pu s'ouvrir\n";
+                << "heat_evolution.dat"
+                << "\" n'a pas pu s'ouvrir\n";
     }
 }
 
@@ -557,7 +557,7 @@ void Projet::affiche_parametre()
         << "\n\t|===================================== "
         << "\n\t|stab   : " << std::boolalpha << boption("Modele.GaLS")
         << "\n\t|time   : " << boption("Time.time")
-        << "\n\t|save   : " << soption("Exporter.save")<< "\n\n";
+        << "\n\t|save   : " << soption("Exporter.save") << "\n\n";
 
 }
 #endif
