@@ -224,6 +224,7 @@ createGMSH()
 
 #if(FEELPP_DIM==2)
     ostr_desc
+#if 0// veritable test
         << "//create by md_commun.hpp\n"
         << "//parameter of the mesh\n"
         << "\n"
@@ -313,6 +314,53 @@ createGMSH()
         << "Physical Surface(\"IC1\") = {101};//processor IC1\n"
         << "Physical Surface(\"IC2\") = {102};//processor IC2\n"
         << "Physical Surface(\"AIR\") = {103};//conduct of areation\n";
+#endif
+ << "Point(1) = {0, 0, 0, h};\n"
+ << "Point(2) = {2, 0, 0, h};\n"
+ << "Point(3) = {2, 1, 0, h};\n"
+ << "Point(4) = {2, 2, 0, h};\n"
+ << "Point(5) = {0, 2, 0, h};\n"
+ << "Point(6) = {3, 0, 0, h};\n"
+ << "Point(7) = {3, 1, 0, h};\n"
+ << "Point(8) = {3, 2, 0, h};\n"
+ << "Point(9) = {4, 0, 0, h};\n"
+ << "Point(10) = {4, 2, 0, h};\n"
+ << "Line(1) = {1, 2};\n"
+ << "Line(2) = {2, 3};\n"
+ << "Line(3) = {3, 4};\n"
+ << "Line(4) = {4, 5};\n"
+ << "Line(5) = {5, 1};\n"
+ << "Line(6) = {2, 6};\n"
+ << "Line(7) = {6, 7};\n"
+ << "Line(8) = {7, 3};\n"
+ << "Line(9) = {7, 8};\n"
+ << "Line(10) = {8, 4};\n"
+ << "Line(11) = {6, 9};\n"
+ << "Line(12) = {9, 10};\n"
+ << "Line(13) = {10, 8};\n"
+ << "Line Loop(15) = {1, 2, 3, 4, 5};\n"
+ << "Plane Surface(15) = {15};\n"
+ << "Line Loop(17) = {6, 7, 8, -2};\n"
+ << "Plane Surface(17) = {17};\n"
+ << "Line Loop(19) = {8, 3, -10, -9};\n"
+ << "Plane Surface(19) = {19};\n"
+ << "Line Loop(21) = {9, -13, -12, -11, 7};\n"
+ << "Plane Surface(21) = {21};\n"
+
+         << "//______physical-line__________________________________\n"
+        << "Physical Line(\"in1\") = {2};//condition of dirichlet: T=T0, u_a=f_entre\n"
+        << "Physical Line(\"in2\") = {3};//condition of dirichlet: T=T0, u_a=f_entre\n"
+        << "Physical Line(\"out\") = {12};//condition of Robin\n"
+        << "Physical Line(\"wall\") = {1,4};// paroi du conduit d'areation\n"
+        << "Physical Line(\"borderFluid\") = {5};// paroi du conduit d'areation interieur\n"
+        << "\n"
+        << "//______physical-surface_______________________________\n"
+        << "Physical Surface(\"PCB\") = {21};//motherboard PCB\n"
+        << "Physical Surface(\"IC1\") = {19};//processor IC1\n"
+        << "Physical Surface(\"IC2\") = {17};//processor IC2\n"
+        << "Physical Surface(\"AIR\") = {15};//conduct of areation\n";
+
+
 
     //Feel::cout<< "dimension de la geometrie:\n"<< ostr_desc.str()<< "\n\n";
 #else

@@ -376,7 +376,7 @@ void Projet::run_dynamic_fluid()
         if(m_modele == modele3)
         {
             tic();
-            for(int i= 0; (i<1) && go_continue; i++)
+            for(int i= 0; (i<3) && go_continue; i++)
             {
                 m_ns.reset_dynamic();
                 m_ns.build_time_linear(dt);

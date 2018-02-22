@@ -62,10 +62,15 @@ endif()
 # EADS
 #
 feelpp_add_application( eads_2d SRCS projet_eads.cpp INCLUDE_IN_ALL DEFS FEELPP_DIM=2 EXEC CSMI_EADS_2D INSTALL TESTS)
+feelpp_add_application( fluid_test_2d SRCS test_fluid.cpp INCLUDE_IN_ALL DEFS FEELPP_DIM=2 EXEC CSMI_FLUID_TEST_2D INSTALL TESTS)
 #feelpp_add_application( eads_3d SRCS projet_eads.cpp INCLUDE_IN_ALL DEFS FEELPP_DIM=3 EXEC CSMI_EADS_3D INSTALL TESTS)
 feelpp_add_testcase( eads PREFIX csmi CATEGORY projet_CSMI )
-add_dependencies(projet_CSMI ${QS_ADR_2D} ${QS_ADR_3D}  )
-add_dependencies(check ${QS_ADR_2D} ${QS_ADR_3D} )
+add_dependencies(projet_CSMI ${CSMI_EADS_2D} ) # ${CSMI_EADS_3D}  )
+add_dependencies(test ${CSMI_FLUID_TEST_2D} )
+
+
+
+
 
 add_custom_target(install-projet_CSMI
 DEPENDS
