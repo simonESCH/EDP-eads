@@ -169,7 +169,7 @@ void Heat::init(mesh_ptrtype theMesh, Modele_type mod)
 {
     tic();
     m_modele=mod;
-    this->m_mesh= createSubmesh( theMesh, elements(theMesh));
+    this->m_mesh= theMesh;
     init_param();
     init_heat();
     toc("init_heat");
@@ -237,10 +237,7 @@ void Heat::init_heat()
     vector= m_backend->newVector(Th);
     vector_static= m_backend->newVector(Th);
 
-    matrix->zero();
-    matrix_static->zero();
-    vector->zero();
-    vector_static->zero();
+    // remplissage de la matrice matrix_static
     init_matrix();
 
     toc("Th/Th_vect");
@@ -250,17 +247,18 @@ void Heat::init_heat()
 //! \brief build the matrix matrix for the term with no-time dependance
 void Heat::init_matrix()
 {
-
     auto linear=form1(_test=Th, _vector=vector_static);
     auto bilinear=form2(_test=Th, _trial=Th, _matrix=matrix_static);
-
+    
+    // mise a zero
     linear.zero();
     bilinear.zero();
 
+    // mise en place de la diffusion de la chaleur
     bilinear+= integrate(
             _range= elements(m_mesh), 
             _expr= idv(m_k) * inner(grad(u), gradt(ut))
-            );// diffusion of heat
+            );
 }
 
 
@@ -318,23 +316,14 @@ double Heat::get_error_Lu()
 
 
 
+
 void Heat::reset_dynamic()
 {
     matrix->zero();
+    matrix->addMatrix(1, matrix_static);
+
     vector->zero();
-
-    auto bilinear_static=form2(_test=Th ,_trial=Th ,_matrix=matrix_static);
-    auto bilinear=form2(_test=Th ,_trial=Th ,_matrix=matrix);
-    bilinear+=bilinear_static;
-
-    auto linear_static=form1(_test=Th ,_trial=Th ,_vector=vector_static);
-    auto linear=form1(_test=Th ,_trial=Th ,_vector=vector);
-    linear+=linear_static;
-    //matrix->zero();
-    //vector->zero();
-
-    //matrix+= matrix_static;
-    //vector+= vector_static;
+    vector=vector_static;
 }
 
 
@@ -362,7 +351,8 @@ void Heat::build_heat_stab(myexpr_type Q)
 
 
     auto delta= doption("Modele.epsilon") * cst(1.)/( 1./h() + idv(m_k)/(h()*h()) );
-
+    
+    // stabilisation de la partie bilineaire delta*(L(u)*L(v))
     bilinear+=integrate(
             _range= elements(m_mesh), 
             _expr= delta*L*Lt
@@ -378,11 +368,6 @@ void Heat::build_heat_stab(myexpr_type Q)
 
 
 
-//template<typename bilinear_type, typename linear_type>
-//void update(bilinear_type & bilinear, linear_type & linear)
-//{
-//    matrix.
-//}
 
 
 
@@ -390,8 +375,9 @@ void Heat::build_heat_stab(myexpr_type Q)
 
 // RUN //
     template<typename myexpr_type>
-void Heat::run(myexpr_type Q, double dt)
+void Heat::run(myexpr_type Q)
 {
+    tic();
     //double dt= doption("Time.time");
 
     auto linear= form1(_test= Th, _vector= vector);
@@ -406,17 +392,21 @@ void Heat::run(myexpr_type Q, double dt)
 
     if( m_modele != modele0 )
     {
+        // teme de convection de la chaleur
         bilinear+= integrate(
                 _range= markedelements(m_mesh, "AIR"), 
                 _expr= idv(m_rc) * (gradt(ut) * idv(beta)) *id(u)
                 );//convection of the heat
 
+        //stabilisation en utilisant la methode Galerkin Least-Square
         if(boption("Modele.GaLS"))
             build_heat_stab(Q);
     }
 
+    // ajout du terme en temps du/dt
     if(boption("Time.time"))
     {
+        double dt=doption("Time.dt");
         linear+= integrate( // terme de memoire/inertie
                 _range= elements(m_mesh), 
                 _expr= idv(m_rc) * id(u) * idv(uPrec)/dt
@@ -428,7 +418,7 @@ void Heat::run(myexpr_type Q, double dt)
                 );
     }
 
-
+    // condition au bord
     bilinear+=on( // temperature du flot d'entree
             _range= markedfaces(m_mesh, {"in1", "in2"}), 
             _rhs= linear, 
@@ -437,16 +427,14 @@ void Heat::run(myexpr_type Q, double dt)
             );
     toc("  build  "); 
 
-    //build_heat_dynamic(bilinear, linear, Q);
-    //build_heat_diric_edge(bilinear, linear);
-
     tic();
     m_backend->solve(
             _solution= ut, 
             _matrix=matrix, 
             _rhs=vector
             );
-    toc("  solve  ");   
+    toc("  solve  ");  
+    toc("run HEAT")
 }
 
 
