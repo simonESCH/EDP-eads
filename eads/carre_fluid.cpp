@@ -1,29 +1,9 @@
 #include "fluide.hpp"
 
 
-
-
-inline
-    po::options_description
-makeOpt()
-{
-    po::options_description myapplOpt("mes options");
-    myapplOpt.add_options()
-        ("Air.mu", po::value<double>()->default_value(1.8e-5),"viscosity")
-        ("Air.rho", po::value<double>()->default_value(1.184),"density")
-        ("Modele.flux",po::value<std::string>()->default_value("{0,1}"),"flow")
-        ("Modele.modele", po::value<std::string>()->default_value("modele0"))
-        ("Time.time",po::value<bool>()->default_value(false))
-        ("Time.dt",po::value<double>()->default_value(.01),"dt")
-        ("Time.Tfinal",po::value<double>()->default_value(10),"temps final");
-    myapplOpt.add(backend_options("backend_fluid"));
-    return myapplOpt.add(feel_options());
-}
-
-
 // mise en place du maillage
-    gmsh_ptrtype
-createCarre()
+gmsh_ptrtype
+createGMSH()
 {
     gmsh_ptrtype desc(new Gmsh);
 
@@ -34,10 +14,10 @@ createCarre()
         << "// On doit alors avoir un tourbillon centrale et des petits\n"
         << "// tourbillons dans les coins.\n\n"
 
+        << "h = "<<doption("gmsh.hsize")<<";//m\n"
 
         << desc->preamble() << "\n\n"
 
-        << "h = "<<doption("gmsh.hsize")<<"//m;\n"
         << "Point(1)    = {0, 0, 0, h};\n"
         << "Point(2)    = {2, 0, 0, h};\n"
         << "Point(3)    = {2, 2, 0, h};\n"
@@ -56,15 +36,13 @@ createCarre()
 
         << "Physical Line(\"in1\") = {3};\n"
         << "Physical Line(\"in2\") = {4};\n"
-        << "Physical Line(\"borderfluid\") = {1,2,5};\n"
-        << "Physical Surface(\"AIR\") = {15};\n";
+        << "Physical Line(\"borderfluid\") = {1,2,5};\n";
 
     std::ostringstream nameStr;
     nameStr << "geo_test_fluid";
-    //Feel::cout << ostr.str();
 
     desc->setCharacteristicLength(doption("gmsh.hsize"));
-    desc->setDescription(ostr.str());
+    desc->setDescription(ostr_desc.str());
 
     return desc;
 
@@ -79,30 +57,28 @@ int main(int argc,char* argv[])
     Environment env( 
             _argc= argc, 
             _argv= argv, 
-            _desc= makeOpt(), 
+            _desc= makeOptions(), 
             _about= about( _name= "test_fluid_M1-CSMI", 
-                _author= "Simon ESCHBACH", 
+                _author= "Simon ESCHACH", 
                 _email= ""));
 
     auto mesh= createGMSHMesh(
             _mesh= new Mesh<MyMesh_type>,
-            _desc= createCarre()
+            _desc= createGMSH()
             );
     auto modele=init_modele();
-    auto souffle= expr<FEELPP_DIM,1>(soption("Modele.flux"));
+    auto souffle= expr<FEELPP_DIM,1>("{1,0}")
 
     NavierStokes fluid;
-    fluid.init(mesh, modele);
+    fluid.init(mesh,modele);
 
     if(! boption("Time.time"))
-        fluid.run(souffle);
+        run(souffle);
     else
     {
-        Feel::cout << "on se concentre deja sur le cas statique\n";
+        feel::cout << "on se concentre deja sur le cas statique\n";
     }
-    //auto exp= exporter(_mesh= mesh, _name= "lala");
-    //exp->add("velocity", fluid.m_fluid.element<0>());
-    //exp->save();
+
 
     return 0;
 }

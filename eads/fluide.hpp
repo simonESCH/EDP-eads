@@ -12,8 +12,10 @@
 //#include <sstream>
 //#include <string>
 #include "md_commun.hpp"
+//#include "commun.hpp"
 
 #define MAX_LOOP_NAVIER 10
+#define MIN_ERROR_NAVIER 1e-6
 
 using namespace Feel;
 using namespace vf;
@@ -111,7 +113,7 @@ class NavierStokes
 
     void init_matrix();
 
-    void build_time_linear(double dt);
+    void build_time_linear();
 
     void reset_dynamic();
 
@@ -123,10 +125,8 @@ class NavierStokes
         void run_stokes(myexpr_type flow);
 
     template<typename myexpr_type>
-        double run_picard(myexpr_type flow);
+        double run_navier(myexpr_type flow);
 
-    template<typename F>
-        void run(F flow);
 
 
 };
@@ -137,6 +137,7 @@ class NavierStokes
 
 void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
 {
+    tic();
     m_mesh= createSubmesh(mesh, markedelements(mesh, "AIR"));
     m_modele= mod;
 
@@ -147,7 +148,7 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
     m_fluidt= Vph->element();
     m_fluidPrec= Vph->element();
 
-
+    // parametre du fluide
     m_mu= doption("Air.mu");
     m_rho= doption("Air.rho");
 
@@ -156,14 +157,17 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
             _expr= zero<FEELPP_DIM, 1>()
             );
 
-    m_backend= backend(_name= "backend_fluid");
+    m_backend= backend( _name= "backend_fluid");
+    
     matrix= m_backend->newMatrix(Vph, Vph);
     vector= m_backend->newVector(Vph);
+
     matrix_static= m_backend->newMatrix(Vph, Vph);
     vector_static= m_backend->newVector(Vph);
-
+    
     // mise en place de la matrice matrix_static
     init_matrix();
+    toc("init NAVIERSTOKES");
 }
 
 
@@ -178,9 +182,10 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
 /// \f$ += \int_\Omega q\nabla u+p\nabla v\f$
 void NavierStokes::init_matrix()
 {
-    tic();
     auto bilinear= form2(_test= Vph,_trial= Vph, _matrix= matrix_static);
     auto linear= form1(_test= Vph, _vector= vector_static);
+    bilinear.zero();
+    linear.zero();
 
     auto v= m_fluid.template element<0>();
     auto u= m_fluid.template element<0>();
@@ -190,12 +195,13 @@ void NavierStokes::init_matrix()
     
     auto deft= sym(gradt(u));
     auto Id= eye<FEELPP_DIM,FEELPP_DIM>();
-    auto sigmat= -idt(p)*Id + 2*m_mu*deft;
+    //auto sigmat=-idt(p)*Id+m_mu*gradt(u);
+    auto sigmat=-idt(p)*Id + 2*m_mu*deft;
 
     // terme principal
     bilinear+= integrate(
             _range= elmts,
-            _expr=inner(sigmat,grad(v))
+            _expr= inner(sigmat,grad(v))
             );
 
     // condition d'incompressibilité
@@ -210,7 +216,6 @@ void NavierStokes::init_matrix()
                 _range= elements(m_mesh), 
                 _expr= m_rho/doption("Time.dt")*inner(idt(u), id(v))
                 );
-    toc("matrix static");
 }
 
 
@@ -220,7 +225,7 @@ void NavierStokes::reset_dynamic()
     matrix->addMatrix(1,matrix_static);
     
     vector->zero();
-    vector=vector_static;
+    vector= vector_static;
 }
 
 
@@ -250,13 +255,14 @@ void NavierStokes::run_stokes(myexpr_type flow)
 {
     auto v= m_fluid.element<0>();
     auto u= m_fluid.element<0>();
-    auto u_tmp= m_fluid.element<0>();
+    auto u_tmp= m_fluidt.element<0>();
 
     // re... de la matrice matrix et du vecteur vector
     reset_dynamic();
     auto linear= form1(_test= Vph, _vector= vector);
     auto bilinear= form2(_test= Vph, _trial= Vph, _matrix= matrix);
-    build_time_linear();
+    if(boption("Time.time"))
+        build_time_linear();
 
 
     // condition au bord
@@ -267,7 +273,7 @@ void NavierStokes::run_stokes(myexpr_type flow)
             _expr= flow
             );
     bilinear+= on(// condition sur les parois
-            _range= markedfaces(m_mesh, {"borderFluid", "wall"}), 
+            _range= markedfaces(m_mesh, "borderfluid"), 
             _rhs= linear, 
             _element= u, 
             _expr= zero<FEELPP_DIM, 1>()
@@ -276,10 +282,10 @@ void NavierStokes::run_stokes(myexpr_type flow)
 
     // resolution
     m_backend->solve(
-            _solution= m_fluidt, 
+            _solution= m_fluid, 
             _matrix= matrix, 
             _rhs= vector//,
-            //_rebuild=true
+            //_rebuild= true
             );
 }
 
@@ -288,24 +294,31 @@ void NavierStokes::run_stokes(myexpr_type flow)
 
     template<typename myexpr_type>
 double NavierStokes::run_navier(myexpr_type flow)
-        {
+{
+    tic();
     auto v= m_fluid.element<0>();
     auto u= m_fluidt.element<0>();// terme temporaire pour faire la difference
     auto u_tmp= m_fluid.element<0>();
+    u.on(_range=elements(m_mesh), _expr= zero<FEELPP_DIM,1>());
 
     // re... du systeme
     reset_dynamic();
     auto linear= form1(_test= Vph, _vector= vector);
     auto bilinear= form2(_test= Vph, _trial= Vph, _matrix= matrix);
-    build_time_linear();
+    if(boption("Time.time"))
+        build_time_linear();
 
 
     // terme d'auto-convection
-    auto autoconv= gradt(u)*idv(u_tmp); 
+    auto autoconv= trans(gradv(u_tmp)*idt(u))*id(v); 
     bilinear+= integrate(
             _range= elements(m_mesh), 
-            _expr= m_rho * inner(autoconv,id(v))//m_rho * autoconv * id(v)
+            _expr= m_rho * autoconv//m_rho * autoconv * id(v)
             );
+    //linear+= integrate(
+    //        _range= elements(m_mesh), 
+    //        _expr= m_rho * trans(gradv(u_tmp)*idv(u_tmp))*id(v)//m_rho * autoconv * id(v)
+    //        );
 
 
     //condition au bord
@@ -316,7 +329,7 @@ double NavierStokes::run_navier(myexpr_type flow)
             _expr= flow
             );
     bilinear+= on(
-            _range= markedfaces(m_mesh, {"borderFluid", "wall"}), 
+            _range= markedfaces(m_mesh, "borderfluid"), 
             _rhs= linear, 
             _element= u, 
             _expr= zero<FEELPP_DIM, 1>()
@@ -337,6 +350,7 @@ double NavierStokes::run_navier(myexpr_type flow)
 
     // remplacement de la variabla temporaire pa la solution
     u_tmp= u;
+    toc("run_navier");
     return error;
 }
 
@@ -346,11 +360,37 @@ double NavierStokes::run_navier(myexpr_type flow)
     template<typename myexpr_type>
 void NavierStokes::run(myexpr_type flow)
 {
-    run_stockes(flow);
-    if(m_modele==modele3)
-        for(int i=0;i<MAX_LOOP_NAVIER;i++)
-            run_navier(flow);
-    *m_fluidPrec=*m_fluid;
+    tic();
+    auto exp=exporter(_mesh=m_mesh,_name="test_fluid");
+
+    run_stokes(flow);
+    exp->step(0)->add("velocity",m_fluid.element<0>());
+    exp->step(0)->add("pressure",m_fluid.element<1>());
+    exp->save();
+
+
+    if(m_modele== modele3)
+    {
+        bool est_non_fini=true;
+        double error;
+        for(int i= 0;(i<MAX_LOOP_NAVIER) && est_non_fini;i++)
+        {
+            error=run_navier(flow);
+            if(error<MIN_ERROR_NAVIER)
+                est_non_fini=false;
+            Feel::cout << i << ": erreur= " << error << "\n";
+            exp->step(i+1)->add("velocity",m_fluid.element<0>());
+            exp->step(i+1)->add("pressure",m_fluid.element<1>());
+            exp->save();
+        }
+    }
+    Feel::cout 
+        << "la vitesse moyenne est:\n" 
+        << mean(
+                _range= elements(m_mesh),
+                _expr= idv(m_fluid.element<0>())) << "\n";
+    m_fluidPrec= m_fluid;
+    toc("run Fluid");
 }
 
 
