@@ -30,6 +30,7 @@ int main(int argc, char* argv[])
     tic();
 #if TEST_PROJET_HPP
     Projet eads;
+
     eads.run();
 #else
     auto mesh= createGMSHMesh(

@@ -11,8 +11,10 @@
 #include <sstream>
 #include <string>
 #include <iomanip> 
-#include "md_ns.hpp"
-#include "md_heat.hpp"
+//#include "md_ns.hpp"
+//#include "md_heat.hpp"
+#include "chaleur.hpp"
+#include "fluide.hpp"
 
 using namespace Feel;
 using namespace vf;
@@ -126,6 +128,71 @@ void Projet::run()
 void Projet::run_static()
 {
     auto Q= expr(soption("Proc.Q"));
+    auto beta= expr<FEELPP_DIM,1>(m_poiseuille);
+
+    // mise en place d'un flux de refroidissement
+    if(m_modele==modele1)
+    {
+        m_heat.beta.on(
+                _range= elements(m_heat.m_mesh),
+                _expr= beta
+                );}
+    else if(m_modele == modele2 || m_modele == modele3) 
+    {
+        // operateur permettant de transformer le flux d'air en flux de convection pour la chaleur
+        tic();
+        auto fluidToConv=opinterpolation(
+                _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(),
+                _imageSpace= m_heat.beta.funtionSpace()
+                );
+        m_ns.run(beta);
+        flowToConv->apply(
+                m_ns.m_fluid.element<0>(), 
+                m_heat.beta
+                );
+        toc("run fluid");
+    }
+
+    tic();
+    m_heat.run(Q);
+    toc("run heat");
+
+
+
+    tic();
+    auto expCase= exporter(
+            _mesh= m_mesh, 
+            _name= soption("Exporter.save")
+            );
+    expCase->add("heat", m_heat.ut);
+
+    // ajout de la convection dans le .case
+    if(m_modele == modele1)
+        expCase->add("convection", m_heat.beta);
+    else if(m_modele != modele0)
+    {
+        expCase->add("fluid_pressure", m_ns.m_fluidt.element<1>());
+        expCase->add("fluid_velocity", m_ns.m_fluidt.element<0>());
+    }
+    expCase->save();
+    toc("exporter");
+
+
+
+    // affichage des parametres de controle
+    Feel::cout
+        << "\n"
+        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << " K\n"
+        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << " K\n"
+        << "|> temperature of out : " << m_heat.get_heat_out() << " K\n"
+        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "  \n";
+
+
+
+
+
+#if 0
+    auto Q= expr(soption("Proc.Q"));
     // estimation de la convection
     if(m_modele != modele0)
     {
@@ -192,7 +259,8 @@ void Projet::run_static()
         << "|> temperature of out : " << m_heat.get_heat_out() << " K\n"
         << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "  \n";
 }
-
+#endif
+}
 
 
 
@@ -202,8 +270,55 @@ void Projet::run_static()
 
 
 #if 1
-void Projet::run_dynamic_no_fluid()
+void Projet::run_dynamic()
 {
+    // stockage des temperature au cour du temps
+    std::ostringstream ostr_heat;
+    ostr_heat
+        << std::setw(15) << "time"
+        << std::setw(15) << "temp_IC1"
+        << std::setw(15) << "temp_IC2"
+        << std::setw(15) << "temp_out"
+        << "\n";
+
+    auto Q= expr(soption("Proc.Q"));
+    double dt= doption("Time.dt");
+    double Tfinal= doption("Time.Tfinal");
+
+    auto expCase= exporter(
+            _mesh= m_heat.m_mesh, 
+            _name= soption("Exporter.save")
+);
+    switch(m_modele)
+{
+    case modele0://pas de refroidissement
+
+        for(double t= 0; t<Tfinal; t+= dt)
+        {
+            tic();
+            Q.setParameterValues({{"t", t}});
+            m_heat.run(Q);
+
+            expCase->step(t)->add("heat", m_heat.u_tmp);
+            expCase->save();
+
+            add_sortie(t);
+
+            std::ostringstream ostr;
+            ostr << "time : " <<std::setw(5) << t;
+            toc(ostr.str());
+        }
+ 
+
+    break;
+    case modele1:// flux d'air fixe avec un profile de Poisseuille
+
+    break;
+    default:// flux d'air suivant equation de Stokes et Navier-Stokes
+
+    break;
+}
+#if 0
     // stockage des temperature au cour du temps
     std::ostringstream ostr_heat;
     ostr_heat
@@ -478,7 +593,7 @@ void Projet::run_dynamic_fluid()
     //    else
     //        Feel::cerr << "le fichier n'a pas pu s'ouvrir\n";
     //}
-
+#endif
 }
 #endif
 

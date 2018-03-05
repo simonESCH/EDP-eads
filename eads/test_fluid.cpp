@@ -15,6 +15,7 @@ makeOpt()
         ("Modele.modele", po::value<std::string>()->default_value("modele0"))
         ("Time.time",po::value<bool>()->default_value(false))
         ("Time.dt",po::value<double>()->default_value(.01),"dt")
+        ("Time.save",po::value<double>()->default_value(0),"save every ... ")
         ("Time.Tfinal",po::value<double>()->default_value(10),"temps final");
     myapplOpt.add(backend_options("backend_fluid"));
     return myapplOpt.add(feel_options());
@@ -26,6 +27,7 @@ makeOpt()
 createCarre()
 {
     gmsh_ptrtype desc(new Gmsh);
+    desc->setCharacteristicLength(doption("gmsh.hsize"));
 
     std::ostringstream ostr;
     ostr
@@ -37,7 +39,7 @@ createCarre()
 
         << desc->preamble() << "\n\n"
 
-        << "h = "<<doption("gmsh.hsize")<<"//m;\n"
+        //<< "h = "<<doption("gmsh.hsize")<<"//m;\n"
         << "Point(1)    = {0, 0, 0, h};\n"
         << "Point(2)    = {2, 0, 0, h};\n"
         << "Point(3)    = {2, 2, 0, h};\n"
@@ -53,7 +55,8 @@ createCarre()
 
         << "Line Loop(10) = {1, 2, 3, 4, 5};\n"
         << "Plane Surface(15) = {10};\n"
-
+        
+        << "Physical Point(\"PressurePointNull\") = {4};\n"
         << "Physical Line(\"in1\") = {3};\n"
         << "Physical Line(\"in2\") = {4};\n"
         << "Physical Line(\"borderfluid\") = {1,2,5};\n"
@@ -63,7 +66,6 @@ createCarre()
     nameStr << "geo_test_fluid";
     //Feel::cout << ostr.str();
 
-    desc->setCharacteristicLength(doption("gmsh.hsize"));
     desc->setDescription(ostr.str());
 
     return desc;
@@ -88,6 +90,8 @@ int main(int argc,char* argv[])
             _mesh= new Mesh<MyMesh_type>,
             _desc= createCarre()
             );
+
+    auto exp= exporter(_mesh=mesh, _name="test_fluid");
     auto modele=init_modele();
     auto souffle= expr<FEELPP_DIM,1>(soption("Modele.flux"));
 
@@ -95,14 +99,46 @@ int main(int argc,char* argv[])
     fluid.init(mesh, modele);
 
     if(! boption("Time.time"))
+    {
         fluid.run(souffle);
+                exp->add("velocity", fluid.m_fluid.element<0>());
+                exp->add("pressure", fluid.m_fluid.element<1>());
+                exp->save();
+
+    }
     else
     {
+        double t;
+        double dt=doption("Time.dt");
+        int time_save=(int)(doption("Time.save")/dt);
+        Feel::cout << "time per save : " << time_save << "\n";
+        int cpt_save=0;
+
+        for(t=0; t<doption("Time.Tfinal");t+=dt)
+        {
+            tic();
+            souffle.setParameterValues({{"t",t}});
+            fluid.run(souffle);
+
+            int momentsave=(int)(t/dt);
+            if( cpt_save%time_save == 0 )
+            {
+                std::ostringstream ostr;
+                ostr << "save: " << cpt_save/time_save; 
+                tic();
+                exp->step(t)->add("velocity", fluid.m_fluid.element<0>());
+                exp->step(t)->add("pressure", fluid.m_fluid.element<1>());
+                exp->save();
+                toc(ostr.str());
+            }
+            cpt_save++;
+            std::ostringstream time;
+            time << "time: " << std::setw(6) << t << " s";
+            toc(time.str());
+            Feel::cout << "\n";
+        }
         Feel::cout << "on se concentre deja sur le cas statique\n";
     }
-    //auto exp= exporter(_mesh= mesh, _name= "lala");
-    //exp->add("velocity", fluid.m_fluid.element<0>());
-    //exp->save();
 
     return 0;
 }
