@@ -224,7 +224,7 @@ createGMSH()
 
 #if(FEELPP_DIM==2)
     ostr_desc
-#if 0// veritable test
+#if 1// veritable test
         << "//create by md_commun.hpp\n"
         << "//parameter of the mesh\n"
         << "\n"
@@ -314,7 +314,7 @@ createGMSH()
         << "Physical Surface(\"IC1\") = {101};//processor IC1\n"
         << "Physical Surface(\"IC2\") = {102};//processor IC2\n"
         << "Physical Surface(\"AIR\") = {103};//conduct of areation\n";
-#endif
+#else
  << "Point(1) = {0, 0, 0, h};\n"
  << "Point(2) = {2, 0, 0, h};\n"
  << "Point(3) = {2, 1, 0, h};\n"
@@ -360,7 +360,7 @@ createGMSH()
         << "Physical Surface(\"IC2\") = {17};//processor IC2\n"
         << "Physical Surface(\"AIR\") = {15};//conduct of areation\n";
 
-
+#endif
 
     //Feel::cout<< "dimension de la geometrie:\n"<< ostr_desc.str()<< "\n\n";
 #else

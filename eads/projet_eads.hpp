@@ -30,13 +30,13 @@ class Projet
     //le but de cette classe sera d'initialiser les deux autres classes
     // faire plusieur mode en fonction du m_modele 
     typedef Mesh<simplex_type> mesh_type;
-    typedef Exporter<mesh_type> exporter_type;
+    typedef boost::shared_ptr<Exporter<mesh_type>> exporter_ptrtype;
 
     Heat m_heat;
     NavierStokes m_ns;
 
     boost::shared_ptr<mesh_type> m_mesh;
-    exporter_type m_export;
+    exporter_ptrtype m_export;
     Modele_type m_modele;
     std::string m_poiseuille;
     std::ostringstream m_sortie;
@@ -52,8 +52,9 @@ class Projet
 
     void run();
     void run_static();
-    void run_dynamic_fluid();
-    void run_dynamic_no_fluid();
+    void run_dynamic();
+    //void run_dynamic_fluid();
+    //void run_dynamic_no_fluid();
 
 
 };
@@ -77,7 +78,6 @@ Projet::Projet():m_heat(), m_ns(), m_sortie()
         exit(1);
     }
 
-    affiche_parametre();//mis ici car, si erreur, pas attendre de faire m_mesh
 
     m_mesh= createGMSHMesh(
             _mesh= new Mesh<MyMesh_type>, 
@@ -92,6 +92,7 @@ Projet::Projet():m_heat(), m_ns(), m_sortie()
     m_heat.init(m_mesh, m_modele);
 
 
+    affiche_parametre();//mis ici car, si erreur, pas attendre de faire m_mesh
     m_sortie
         << std::setw(15) << "time"
         << std::setw(15) << "temp_IC1"
@@ -115,10 +116,7 @@ Projet::Projet():m_heat(), m_ns(), m_sortie()
 void Projet::run()
 {
     if(boption("Time.time"))
-        if( (m_modele == modele0) || (m_modele == modele1) )
-            run_dynamic_no_fluid();
-        else
-            run_dynamic_fluid();
+        run_dynamic();
     else
         run_static();
 }
@@ -149,45 +147,23 @@ void Projet::run_static()
         default:
             // operateur permettant de transformer le flux d'air en flux de convection pour la chaleur
             tic();
-            auto fluidToConv=opinterpolation(
+            auto fluidToConv=opInterpolation(
                     _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(),
-                    _imageSpace= m_heat.beta.funtionSpace()
+                    _imageSpace= m_heat.beta.functionSpace()
                     );
             m_ns.run(beta);
-            flowToConv->apply(
+            fluidToConv->apply(
                     m_ns.m_fluid.element<0>(), 
                     m_heat.beta
                     );
             toc("run fluid");
-            break;
     }
 
     tic();
     m_heat.run(Q);
     toc("run heat");
 
-
-
-    //tic();
-    //auto expCase= exporter(
-    //		_mesh= m_mesh, 
-    //		_name= soption("Exporter.save")
-    //		);
-    //expCase->add("heat", m_heat.ut);
-
-    // ajout de la convection dans le .case
-    //if(m_modele == modele1)
-    //	expCase->add("convection", m_heat.beta);
-    //else if(m_modele != modele0)
-    //{
-    //	expCase->add("fluid_pressure", m_ns.m_fluidt.element<1>());
-    //	expCase->add("fluid_velocity", m_ns.m_fluidt.element<0>());
-    //}
-    //expCase->save();
-    //toc("exporter");
     add_export(0);
-
-
 
     // affichage des parametres de controle
     Feel::cout
@@ -197,79 +173,6 @@ void Projet::run_static()
         << "|> temperature of out : " << m_heat.get_heat_out() << " K\n"
         << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "  \n";
 
-
-
-
-
-#if 0
-    auto Q= expr(soption("Proc.Q"));
-    // estimation de la convection
-    if(m_modele != modele0)
-    {
-        auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
-        if(m_modele == modele1)
-        {
-            m_heat.beta.on(
-                    _range= elements(m_heat.m_mesh), //markedelements(m_heat.m_mesh, "AIR"), 
-                    _expr= beta
-                    ); 
-            Feel::cout << "convection modele1\n";
-        }
-        else
-        {//avec equation des m_fluides
-            tic();
-            auto flowToConv= opInterpolation(
-                    _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(), 
-                    _imageSpace= m_heat.beta.functionSpace()
-                    );
-            if( m_modele==modele2)
-                m_ns.run(beta);
-            else
-            {
-                m_ns.run(beta);
-            }
-            flowToConv->apply(
-                    m_ns.m_fluidt.element<0>(), 
-                    m_heat.beta
-                    );
-            Feel::cout << "convection modele2\n";
-            toc("Fluid");
-        }
-    }
-
-
-    tic();
-    m_heat.run(Q);
-    toc("Heat");
-
-
-    tic();
-    auto expCase= exporter(
-            _mesh= m_mesh, 
-            _name= soption("Exporter.save")
-            );
-    expCase->add("heat", m_heat.ut);
-
-    // ajout de la convection dans le .case
-    if(m_modele == modele1)
-        expCase->add("convection", m_heat.beta);
-    else if(m_modele != modele0)
-    {
-        expCase->add("fluid_pressure", m_ns.m_fluidt.element<1>());
-        expCase->add("fluid_velocity", m_ns.m_fluidt.element<0>());
-    }
-    expCase->save();
-    toc("exporter");
-
-
-    Feel::cout
-        << "\n"
-        << "|> temperature of IC1 : " << m_heat.get_heat_IC1() << " K\n"
-        << "|> temperature of IC2 : " << m_heat.get_heat_IC2() << " K\n"
-        << "|> temperature of out : " << m_heat.get_heat_out() << " K\n"
-        << "|>      L(u_sol)      : " << m_heat.get_error_Lu() << "  \n";
-}
-#endif
 }
 
 
@@ -279,8 +182,7 @@ std::string timeT(double t)
 {
     std::ostringstream ostr;
     ostr << "time : " << std::setw(7) << t;
-    treturn ostr.str();
-
+    return ostr.str();
 }
 
 
@@ -288,25 +190,13 @@ std::string timeT(double t)
 #if 1
 void Projet::run_dynamic()
 {
-    // stockage des temperature au cour du temps
-    //std::ostringstream ostr_heat;
-    //ostr_heat
-    //	<< std::setw(15) << "time"
-    //	<< std::setw(15) << "temp_IC1"
-    //	<< std::setw(15) << "temp_IC2"
-    //	<< std::setw(15) << "temp_out"
-    //	<< "\n";
-
     auto Q= expr(soption("Proc.Q"));
     double dt= doption("Time.dt");
     double Tfinal= doption("Time.Tfinal");
+    
     int fin=(int)(Tfinal/dt);
     int Tsave=(int)(doption("Time.save")/dt);
 
-    //auto expCase= exporter(
-    //		_mesh= m_heat.m_mesh, 
-    //		_name= soption("Exporter.save")
-    //		);
     switch(m_modele)
     {
         case modele0://pas de refroidissement
@@ -322,81 +212,78 @@ void Projet::run_dynamic()
                 // resolution a l'instant t
                 m_heat.run(Q);
 
-                //expCase->step(t)->add("heat", m_heat.u_tmp);
-                //expCase->save();
 
                 // recuperation des donnée
-                if( ! it%Tsave) 
-                    add_export(it*dt);
+                if(it%Tsave == 0) 
+                    add_export(t);
                 add_sortie(t);
 
                 //std::ostringstream ostr;
                 //ostr << "time : " <<std::setw(5) << t;
                 toc(timeT(t));//ostr.str());
             }
-
-
             break;
+
         case modele1:// flux d'air fixe avec un profile de Poisseuille
-
-            auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
-            for(int it=0;it<fin;++it)
             {
-                tic();
+                auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
+                for(int it=0;it<fin;++it)
+                {
+                    tic();
 
-                // reactualisation des parametres dépendant du temps
-                double t=it*dt;
-                Q.setParameterValues({{"t", t}});
-                beta.setParameterValues({{"t", t}});
-                m_heat.betaUpdate(beta);
+                    // reactualisation des parametres dépendant du temps
+                    double t=it*dt;
+                    Q.setParameterValues({{"t", t}});
+                    beta.setParameterValues({{"t", t}});
+                    m_heat.betaUpdate(beta);
 
-                // resolution a l'instant t
-                m_heat.run(Q);
+                    // resolution a l'instant t
+                    m_heat.run(Q);
 
-                // recuperation des donnée
-                if( !it%Tsave)
-                    add_export(it*dt);
-                add_sortie(t);
+                    // recuperation des donnée
+                    if(it%Tsave == 0)  
+                        add_export(t);
+                    add_sortie(t);
 
-                //std::ostringstream ostr;
-                //ostr << "time : " <<std::setw(5) << t;
-                toc(timeT(t));//ostr.str());
+                    toc(timeT(t));
 
+                }
+                break;
             }
-            break;
         default:// flux d'air suivant equation de Stokes et Navier-Stokes
-            auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
-
-            auto flowToConv= opInterpolation( 
-                    _domainSpace= m_ns.m_fluid.element<0>().functionSpace(), 
-                    _imageSpace= m_heat.beta.functionSpace()
-                    );
-
-            for(int it=0; it<fin; ++it)
             {
-                tic();
+                auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
 
-                // reactualisation des parametre dépendant du temps
-                double t=it*dt;
-                Q.setParameterValues({{"t",t}});
-                beta.setParameterValues({{"t",t}});
+                auto fluidToConv= opInterpolation( 
+                        _domainSpace= m_ns.m_fluid.element<0>().functionSpace(), 
+                        _imageSpace= m_heat.beta.functionSpace()
+                        );
 
-                // mise en place du flux de refroidissement
-                m_ns.run(beta);
-                flowToConv.apply(m_ns.m_fluid.element<0>(),m_heat.beta);
+                for(int it=0; it<fin; ++it)
+                {
+                    tic();
 
-                // resolution de l'équation de la chaleur
-                m_heat.run(Q);
+                    // reactualisation des parametre dépendant du temps
+                    double t=it*dt;
+                    Q.setParameterValues({{"t",t}});
+                    beta.setParameterValues({{"t",t}});
 
-                //recuperation des données
-                if(! it%Tsave)
-                    add_export(it*dt);
-                add_sortie(t);
+                    // mise en place du flux de refroidissement
+                    m_ns.run(beta);
+                    fluidToConv->apply(m_ns.m_fluid.element<0>(),m_heat.beta);
+
+                    // resolution de l'équation de la chaleur
+                    m_heat.run(Q);
+
+                    //recuperation des données
+                    if(it%Tsave == 0)
+                        add_export(t);
+                    add_sortie(t);
 
 
-                toc(timeT(t));
+                    toc(timeT(t));
+                }
             }
-            break;
     }
 
     Feel::cout
@@ -558,7 +445,7 @@ void Projet::run_dynamic_fluid()
     auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
 
     // les derniers modeles avec les equations de m_fluide
-    auto flowToConv= opInterpolation( 
+    auto fluidToConv= opInterpolation( 
             _domainSpace= m_ns.m_fluidt.element<0>().functionSpace(), 
             _imageSpace= m_heat.beta.functionSpace()
             );
@@ -629,7 +516,7 @@ void Projet::run_dynamic_fluid()
         toc(" FLUID ");
 
         tic();
-        flowToConv->apply(
+        fluidToConv->apply(
                 m_ns.m_fluidt.element<0>(), 
                 m_heat.beta
                 );
@@ -706,20 +593,19 @@ void Projet::add_sortie(double t)
 void Projet::add_export(double t)
 {
     tic();
-    m_export.step(t)->add("temperature",m_heat.u);
+    m_export->step(t)->add("temperature",m_heat.u);
     switch(m_modele)
     {
         case modele0:
             break;
         case modele1:
-            m_export.step(t)->add("convection",m_heat.beta);
+            m_export->step(t)->add("convection",m_heat.beta);
             break;
-            default
-                m_export.step(t)->add("fluidVelocity",m_ns.m_fluid.element<0>());
-            m_export.step(t)->add("fluidPressure",m_ns.m_fluid.element<1>());
-            break;
+        default:
+            m_export->step(t)->add("fluidVelocity",m_ns.m_fluid.element<0>());
+            m_export->step(t)->add("fluidPressure",m_ns.m_fluid.element<1>());
     }
-    m_export.save();
+    m_export->save();
     toc("export");
 }
 
@@ -783,7 +669,7 @@ void Projet::affiche_parametre()
         << "\n\t|===================================== "
         << "\n\t|stab   : " << std::boolalpha << boption("Modele.GaLS")
         << "\n\t|time   : " << boption("Time.time")
-        << "\n\t|save   : " << soption("Exporter.save") << "\n\n";
+        << "\n\t|save   : " << m_export->path() << "\n\n";
 
 }
 #endif

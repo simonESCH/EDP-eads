@@ -1,5 +1,5 @@
-#ifndef __MD_HEAT_HPP__
-#define __MD_HEAT_HPP__ 1
+#ifndef __CHALEUR_HPP__
+#define __CHALEUR_HPP__ 1
 
 
 /**
@@ -130,21 +130,19 @@ class Heat
     // private function
 
 
-template<typename myexpr_type>
+    template<typename myexpr_type>
         void build_heat_stab(myexpr_type Q);
 
-        void init_matrix();
+    void init_matrix();
 
-        void reset_dynamic();
+    void reset_dynamic();
 
-    template<typename expr_type>
-        void run(expr_type Q, double dt);
 
     template<typename myexpr_type>
         void run(myexpr_type Q);
 
-template<typename myexpr_type>
-void betaUpdate(myexpr_type beta);
+    template<typename myexpr_type>
+        void betaUpdate(myexpr_type beta);
 
     /// \fn Heat
     /// \brief constructor
@@ -281,6 +279,7 @@ double Heat::get_heat_IC1()
 
 
 //! \fn get_heat_IC2
+double Heat::get_heat_IC2()
 {
     return mean(
             _range= markedelements(m_mesh, "IC2"), 
@@ -324,12 +323,12 @@ void Heat::reset_dynamic()
 
 
 template<typename myexpr_type>
-void Heat::betaUpdate(myexpr_type beta);
+void Heat::betaUpdate(myexpr_type conv)
 {
-    beta.on(
-    _range= markedelements(m_mesh,"AIR"),
-    _expr=beta
-    );
+    this->beta.on(
+            _range= markedelements(m_mesh,"AIR"),
+            _expr=conv
+           );
 }
 
 
@@ -355,7 +354,7 @@ void Heat::build_heat_stab(myexpr_type Q)
 
 
     auto delta= doption("Modele.epsilon") * cst(1.)/( 1./h() + idv(m_k)/(h()*h()) );
-    
+
     // stabilisation de la partie bilineaire delta*(L(u)*L(v))
     bilinear+=integrate(
             _range= elements(m_mesh), 
@@ -438,7 +437,7 @@ void Heat::run(myexpr_type Q)
             _rhs=vector
             );
     toc("  solve  ");  
-    toc("run HEAT")
+    toc("run HEAT");
 }
 
 
@@ -454,14 +453,14 @@ void Heat::run(myexpr_type Q)
 
 
 //! \fn run_step
-    template<typename myexpr_type>
-void Heat::run( myexpr_type Q)
-{
-    tic();
-    reset_dynamic();
-    run(Q, 0);
-    toc("run heat");
-}
+//    template<typename myexpr_type>
+//void Heat::run( myexpr_type Q)
+//{
+//    tic();
+//    reset_dynamic();
+//    run(Q, 0);
+//    toc("run heat");
+//}
 
 
 
@@ -483,15 +482,3 @@ void Heat::run( myexpr_type Q)
 
 
 #endif
-#ifndef __MD_HEAT_HPP__
-#define __MD_HEAT_HPP__ 1
-
-
-/**
- *\file md_projet.hpp
- */
-
-//#include <feel/feel.hpp>
-//#include <fstream>
-//#include <sstream>
-//#include <string>
