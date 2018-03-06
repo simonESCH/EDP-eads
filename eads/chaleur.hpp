@@ -143,6 +143,8 @@ template<typename myexpr_type>
     template<typename myexpr_type>
         void run(myexpr_type Q);
 
+template<typename myexpr_type>
+void betaUpdate(myexpr_type beta);
 
     /// \fn Heat
     /// \brief constructor
@@ -249,16 +251,12 @@ void Heat::init_matrix()
 {
     auto linear=form1(_test=Th, _vector=vector_static);
     auto bilinear=form2(_test=Th, _trial=Th, _matrix=matrix_static);
-    
-    // mise a zero
-    linear.zero();
-    bilinear.zero();
 
-    // mise en place de la diffusion de la chaleur
+
     bilinear+= integrate(
             _range= elements(m_mesh), 
             _expr= idv(m_k) * inner(grad(u), gradt(ut))
-            );
+            );// diffusion of heat
 }
 
 
@@ -283,8 +281,6 @@ double Heat::get_heat_IC1()
 
 
 //! \fn get_heat_IC2
-//! \brief give the average of the heat for the second processor
-double Heat::get_heat_IC2()
 {
     return mean(
             _range= markedelements(m_mesh, "IC2"), 
@@ -327,6 +323,14 @@ void Heat::reset_dynamic()
 }
 
 
+template<typename myexpr_type>
+void Heat::betaUpdate(myexpr_type beta);
+{
+    beta.on(
+    _range= markedelements(m_mesh,"AIR"),
+    _expr=beta
+    );
+}
 
 
 
@@ -479,3 +483,15 @@ void Heat::run( myexpr_type Q)
 
 
 #endif
+#ifndef __MD_HEAT_HPP__
+#define __MD_HEAT_HPP__ 1
+
+
+/**
+ *\file md_projet.hpp
+ */
+
+//#include <feel/feel.hpp>
+//#include <fstream>
+//#include <sstream>
+//#include <string>
