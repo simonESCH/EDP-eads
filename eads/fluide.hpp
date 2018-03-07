@@ -15,7 +15,7 @@
 //#include "commun.hpp"
 
 #define MAX_LOOP_NAVIER 10
-#define MIN_ERROR_NAVIER 1e-4
+#define MIN_ERROR_NAVIER 1e-6
 
 using namespace Feel;
 using namespace vf;
@@ -158,13 +158,17 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
             );
 
     m_backend= backend( _name= "backend_fluid");
-    
+    //Feel::cout << "marqueur 1\n";    
     matrix= m_backend->newMatrix(Vph, Vph);
+    //Feel::cout << "marqueur 1.5\n";    
+    
     vector= m_backend->newVector(Vph);
 
+    //Feel::cout << "marqueur 2\n";    
     matrix_static= m_backend->newMatrix(Vph, Vph);
     vector_static= m_backend->newVector(Vph);
     
+    //Feel::cout << "marqueur 3\n";    
     // mise en place de la matrice matrix_static
     init_matrix();
     toc("init NAVIERSTOKES");
@@ -385,29 +389,16 @@ void NavierStokes::run(myexpr_type flow)
         }
     }
 
-    auto v_tmp= m_fluid.element<0>();
     auto p_tmp= m_fluid.element<1>();
-    //auto v_norm= (
-    //        v_tmp.comp<ComponentType::X>().pow(2)+
-    //        v_tmp.comp<ComponentType::Y>().pow(2)
-    //        ).sqrt();
-
-    //Feel::cout << "marqueur 1\n";
-    //double v_mean=  normL2(
-    //        _range= elements(m_mesh),
-    //        _expr= idv(v_norm)
-    //        ); 
-
-    //Feel::cout << "marqueur 2\n";
     double p_mean= mean(
             _range=elements(m_mesh),
             _expr= idv(p_tmp)
             )(0,0);
 
-    //Feel::cout << "marqueur 3\n";
     p_tmp.on(
             _range= elements(m_mesh),
             _expr= idv(p_tmp)-p_mean);
+    
 
     //Feel::cout << "la vitesse moyenne est \n"<< v_mean << "\n";
 

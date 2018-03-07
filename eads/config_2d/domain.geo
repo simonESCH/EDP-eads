@@ -1,11 +1,11 @@
-h    =  1e-4;//doption(gmsh.hsize) ;//m
-hPCB =  13e-3;//doption(Geo.hPCB) ;//m
-ePCB =  2e-4;//doption(Geo.ePCB) ;//m
-hIC =  2e-3;//doption(Geo.hIC) ;//m
-eIC =  2e-4;//doption(Geo.eIC) ;//m
-h1   =  2e-3;//doption(Geo.h1) ;//m
-h2   =  1e-2;//doption(Geo.h2) ;//hPCB-hIC-h1;//m
-eAIR =  4e-3;//doption(Geo.eAIR) ;//m
+//h    =  1e-4;//doption(gmsh.hsize) ;//m
+//hPCB =  13e-3;//doption(Geo.hPCB) ;//m
+//ePCB =  2e-4;//doption(Geo.ePCB) ;//m
+//hIC =  2e-3;//doption(Geo.hIC) ;//m
+//eIC =  2e-4;//doption(Geo.eIC) ;//m
+//h1   =  2e-3;//doption(Geo.h1) ;//m
+//h2   =  1e-2;//doption(Geo.h2) ;//hPCB-hIC-h1;//m
+//eAIR =  4e-4;//doption(Geo.eAIR) ;//m
 
 
 
@@ -63,14 +63,14 @@ Line Loop(23) = {15, 16, 17, 18, -6, -14, -13, -12, -4, -11, -10, -9, -2};
 Plane Surface(103) = {23};//the conduct of areation
 
 //______physical-line__________________________________
-Physical Line(\in1\) = {15};//condition of dirichlet: T=T0, u_a=f_entre
-        Physical Line(\in2\) = {16};//condition of dirichlet: T=T0, u_a=f_entre
-            Physical Line(\out\) = {18};//condition of Robin
-                Physical Line(\wall\) = {17};// paroi du conduit d'areation
-                    Physical Line(\borderFluid\) = {2,9,10,11,4,12,13,14,6};// paroi du conduit d'areation interieur
+Physical Line("in1") = {15};//condition of dirichlet: T=T0, u_a=f_entre
+Physical Line("in2") = {16};//condition of dirichlet: T=T0, u_a=f_entre
+Physical Line("out") = {18};//condition of Robin
+//Physical Line("wall") = {17};// paroi du conduit d'areation
+Physical Line("borderFluid") = {2,9,10,11,4,12,13,14,6,17};// paroi du conduit d'areation interieur
 
-                        //______physical-surface_______________________________
-                        Physical Surface(\PCB\) = {100};//motherboard PCB
-                            Physical Surface(\IC1\) = {101};//processor IC1
-                                Physical Surface(\IC2\) = {102};//processor IC2
-                                    Physical Surface(\AIR\) = {103};//conduct of areation;
+//______physical-surface_______________________________
+Physical Surface("PCB") = {100};//motherboard PCB
+Physical Surface("IC1") = {101};//processor IC1
+Physical Surface("IC2") = {102};//processor IC2
+Physical Surface("AIR") = {103};//conduct of areation;

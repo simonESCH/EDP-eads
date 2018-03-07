@@ -24,16 +24,8 @@ typedef Simplex<FEELPP_DIM> M_type;
 
 //// metode utlisation
 // Heat heat;
+// heat.init(...);
 // heat.run(...);
-//
-// ou
-//
-// Heat heat;
-// while()
-// {
-//      heat.reset_dynamic()
-//      heat.run(...);
-// }
 // 
 
 
@@ -274,7 +266,7 @@ double Heat::get_heat_IC1()
 {
     return mean(
             _range= markedelements(m_mesh, "IC1"), 
-            _expr= idv(ut)).value();
+            _expr= idv(u)).value();
 }
 
 
@@ -283,7 +275,7 @@ double Heat::get_heat_IC2()
 {
     return mean(
             _range= markedelements(m_mesh, "IC2"), 
-            _expr= idv(ut)).value();
+            _expr= idv(u)).value();
 }
 
 
@@ -293,14 +285,14 @@ double Heat::get_heat_out()
 {
     return mean(
             _range= markedfaces(m_mesh, "out"), 
-            _expr= idv(ut)).value();
+            _expr= idv(u)).value();
 }
 
 //! \fn get_error_Lu()
 //! \brief give the result of Lu in norm L2
 double Heat::get_error_Lu()
 {
-    auto L=-idv(m_k)*laplacianv(ut) + idv(m_rc)*gradv(ut)*idv(beta);
+    auto L=-idv(m_k)*laplacianv(u) + idv(m_rc)*gradv(u)*idv(beta);
     return normL2(
             _range= elements(m_mesh), 
             _expr= L
@@ -346,8 +338,6 @@ void Heat::build_heat_stab(myexpr_type Q)
     auto bilinear=form2(_test= Th, _trial= Th, _matrix= matrix);
     auto linear=form1(_test= Th, _vector= vector);
 
-
-
     auto L= -idv(m_k)*laplacian(u) + idv(m_rc)*( grad(u)*idv(beta) );
     auto Lt= -idv(m_k)*laplaciant(ut) +  idv(m_rc) * ( gradt(ut)*idv(beta) );
     auto f=Q;
@@ -383,6 +373,7 @@ void Heat::run(myexpr_type Q)
     tic();
     //double dt= doption("Time.time");
 
+    reset_dynamic();
     auto linear= form1(_test= Th, _vector= vector);
     auto bilinear= form2(_test= Th, _trial= Th, _matrix= matrix);
 
@@ -432,11 +423,14 @@ void Heat::run(myexpr_type Q)
 
     tic();
     m_backend->solve(
-            _solution= ut, 
+            _solution= u, 
             _matrix=matrix, 
             _rhs=vector
             );
-    toc("  solve  ");  
+    toc("  solve  ");
+
+    if(boption("Time.time"))
+        uPrec=u;
     toc("run HEAT");
 }
 

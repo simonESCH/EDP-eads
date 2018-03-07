@@ -171,7 +171,6 @@ Modele_type init_modele()
 
 
 
-
 std::string init_edge_in()
 {
     // recupere la force du debit d'air
@@ -215,24 +214,61 @@ std::string init_edge_in()
 }
 
 
+
+
+
+
+
+void test_gmsh()
+{
+    double hPCB = doption("Geo.hPCB"),
+           ePCB = doption("Geo.ePCB"),
+           hIC  = doption("Geo.hIC"),
+           eIC  = doption("Geo.eIC"),
+           h1   = doption("Geo.h1"),
+           h2   = doption("Geo.h2"),
+           eAIR = doption("Geo.eAIR"),
+           h    = doption("gmsh.hsize");
+
+    CHECK(h<=hPCB) << "le pas est trop grand:" << h << ">" << hPCB << "\n";
+    CHECK(h<=ePCB) << "le pas est trop grand:" << h << ">" << ePCB << "\n";
+    CHECK(h<=hIC) << "le pas est trop grand:" << h << ">" << hIC << "\n";
+    CHECK(h<=eIC) << "le pas est trop grand:" << h << ">" << eIC << "\n";
+    CHECK(h<=h1) << "le pas est trop grand:" << h << ">" << h1 << "\n";
+    CHECK(h<=h2) << "le pas est trop grand:" << h << ">" << h2 << "\n";
+    CHECK(h<=eAIR) << "le pas est trop grand:" << h << ">" << eAIR << "\n";
+    
+    CHECK(eIC<eAIR) << "le conduit est trop petit:" << eIC << ">=" << eAIR << "\n";
+#if FEELPP_DIM==3
+
+#endif
+}
+
+
     gmsh_ptrtype
 createGMSH()
 {
+    test_gmsh();
     gmsh_ptrtype desc(new Gmsh);
+    desc->setCharacteristicLength( doption("gmsh.hsize") );
 
     std::ostringstream ostr_desc;
-    std::string filename_path= Environment::findfile(soption("gmsh.filename"));
-    Feel::cout << "description 1\n" << desc->getDescriptionFromFile( filename_path ) << "\n";
+    std::string filename= soption("gmsh.filename");
     
-    
+    std::string filenameExpand = Environment::expand(filename);
+    fs::path mesh_name=fs::path(Environment::findFile(filenameExpand));
+    std::string filename_path= Environment::findFile(mesh_name.string());
+
+    Feel::cout << "file: " << filename_path << "\t issu :" << filename << "\n";
+    std::string desc_str = desc->getDescriptionFromFile( filename_path);
+
+
+
 
 #if(FEELPP_DIM==2)
     ostr_desc
-#if 1// veritable test
         << "//create by md_commun.hpp\n"
         << "//parameter of the mesh\n"
-        << "\n"
-        << "h    = "<< doption("gmsh.hsize")<< ";//m\n"
         << "\n"
         << "// dimension of the motherboard( PCB)\n"
         << "hPCB = "<< doption("Geo.hPCB")<< ";//m\n"
@@ -251,11 +287,12 @@ createGMSH()
         //<< "Include \"eads.geo\";\n";
 
         << desc->preamble()<< "\n"
+        << desc_str;
 
 
 
 
-
+#if 0
         << "//______point__________________________________________\n"
         << "// corner of the motherboard\n"
         << "Point(1)    = {0, 0, 0, h};\n"
@@ -323,52 +360,6 @@ createGMSH()
         << "Physical Surface(\"IC1\") = {101};//processor IC1\n"
         << "Physical Surface(\"IC2\") = {102};//processor IC2\n"
         << "Physical Surface(\"AIR\") = {103};//conduct of areation\n";
-#else
- << "Point(1) = {0, 0, 0, h};\n"
- << "Point(2) = {2, 0, 0, h};\n"
- << "Point(3) = {2, 1, 0, h};\n"
- << "Point(4) = {2, 2, 0, h};\n"
- << "Point(5) = {0, 2, 0, h};\n"
- << "Point(6) = {3, 0, 0, h};\n"
- << "Point(7) = {3, 1, 0, h};\n"
- << "Point(8) = {3, 2, 0, h};\n"
- << "Point(9) = {4, 0, 0, h};\n"
- << "Point(10) = {4, 2, 0, h};\n"
- << "Line(1) = {1, 2};\n"
- << "Line(2) = {2, 3};\n"
- << "Line(3) = {3, 4};\n"
- << "Line(4) = {4, 5};\n"
- << "Line(5) = {5, 1};\n"
- << "Line(6) = {2, 6};\n"
- << "Line(7) = {6, 7};\n"
- << "Line(8) = {7, 3};\n"
- << "Line(9) = {7, 8};\n"
- << "Line(10) = {8, 4};\n"
- << "Line(11) = {6, 9};\n"
- << "Line(12) = {9, 10};\n"
- << "Line(13) = {10, 8};\n"
- << "Line Loop(15) = {1, 2, 3, 4, 5};\n"
- << "Plane Surface(15) = {15};\n"
- << "Line Loop(17) = {6, 7, 8, -2};\n"
- << "Plane Surface(17) = {17};\n"
- << "Line Loop(19) = {8, 3, -10, -9};\n"
- << "Plane Surface(19) = {19};\n"
- << "Line Loop(21) = {9, -13, -12, -11, 7};\n"
- << "Plane Surface(21) = {21};\n"
-
-         << "//______physical-line__________________________________\n"
-        << "Physical Line(\"in1\") = {2};//condition of dirichlet: T=T0, u_a=f_entre\n"
-        << "Physical Line(\"in2\") = {3};//condition of dirichlet: T=T0, u_a=f_entre\n"
-        << "Physical Line(\"out\") = {12};//condition of Robin\n"
-        << "Physical Line(\"wall\") = {1,4};// paroi du conduit d'areation\n"
-        << "Physical Line(\"borderFluid\") = {5};// paroi du conduit d'areation interieur\n"
-        << "\n"
-        << "//______physical-surface_______________________________\n"
-        << "Physical Surface(\"PCB\") = {21};//motherboard PCB\n"
-        << "Physical Surface(\"IC1\") = {19};//processor IC1\n"
-        << "Physical Surface(\"IC2\") = {17};//processor IC2\n"
-        << "Physical Surface(\"AIR\") = {15};//conduct of areation\n";
-
 #endif
 
     //Feel::cout<< "dimension de la geometrie:\n"<< ostr_desc.str()<< "\n\n";
@@ -377,6 +368,7 @@ createGMSH()
     exit();
 #endif
 
+    //Feel::cout << "description 1\n" << ostr_desc.str() << "\n";
     std::ostringstream nameStr;
     nameStr<< "geo_eads";
 
@@ -388,11 +380,6 @@ createGMSH()
 
 
 }
-
-
-
-
-
 
 
 #endif
