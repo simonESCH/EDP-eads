@@ -221,6 +221,10 @@ createGMSH()
     gmsh_ptrtype desc(new Gmsh);
 
     std::ostringstream ostr_desc;
+    std::string filename_path= Environment::findfile(soption("gmsh.filename"));
+    Feel::cout << "description 1\n" << desc->getDescriptionFromFile( filename_path ) << "\n";
+    
+    
 
 #if(FEELPP_DIM==2)
     ostr_desc
@@ -247,6 +251,11 @@ createGMSH()
         //<< "Include \"eads.geo\";\n";
 
         << desc->preamble()<< "\n"
+
+
+
+
+
         << "//______point__________________________________________\n"
         << "// corner of the motherboard\n"
         << "Point(1)    = {0, 0, 0, h};\n"
