@@ -46,9 +46,9 @@ makeOptions()
         ("PCB.k", po::value< double>()->default_value( 1), 
          "conductivity thermic of the print circuit board")
 
-        ("Air.mu", po::value<double>()->default_value( 1.8e-5), 
+        ("Fluid.mu", po::value<double>()->default_value( 1.8e-5), 
          "viscosity of Air")
-        ("Air.rho", po::value<double>()->default_value( 1.184), 
+        ("Fluid.rho", po::value<double>()->default_value( 1.184), 
          "density of Air")
 
         ("Modele.Tamb", po::value< double>()->default_value(293.15), 

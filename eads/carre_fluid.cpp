@@ -1,6 +1,43 @@
 #include "fluide.hpp"
 
 
+
+
+
+po::options_description
+makeFluidOption()
+{
+    po::options_description myappOptions( "My app options" );
+    myappOptions.add_options()
+        ("Geo.largsize", po::value< double>()->default_value( 2 ), 
+         "largeur")
+        ("Geo.longsize", po::value< double>()->default_value( 2 ), 
+         "largeur")
+
+        ("Fluid.rho", po::value< double>()->default_value( .1 ), 
+         "")
+        ("Fluid.mu", po::value< double>()->default_value( 1.8e-5 ), 
+         "")
+        ("Fluid.debit", po::value< double>()->default_value( 1 ), 
+         "")
+        ("Modele.modele", po::value<std::string>()->default_value("modele2"), 
+         "")
+
+        ("Time.time", po::value< bool>()->default_value(false), 
+         "")
+        ("Time.Tfinal", po::value< double>()->default_value( 0 ), 
+         "")
+        ("Time.dt", po::value< double>()->default_value( 1 ), 
+         "")
+        ("Time.save", po::value< double>()->default_value( 0 ), 
+         "")
+        
+        ("Exporter.save", po::value<std::string>()->default_value("test_fluid"), 
+         "");
+
+
+}
+
 // mise en place du maillage
 gmsh_ptrtype
 createGMSH()
@@ -18,11 +55,14 @@ createGMSH()
 
         << desc->preamble() << "\n\n"
 
-        << "Point(1)    = {0, 0, 0, h};\n"
-        << "Point(2)    = {2, 0, 0, h};\n"
-        << "Point(3)    = {2, 2, 0, h};\n"
-        << "Point(4)    = {1, 2, 0, h};\n"
-        << "Point(5)    = {0, 2, 0, h};\n"
+        << "larg = " << doption("Geo.largsize") << ";\n"
+        << "long = " << doption("Geo.longsize") << ";\n"
+
+        << "Point(1)    = {0,      0,    0, h};\n"
+        << "Point(2)    = {larg,   0,    0, h};\n"
+        << "Point(3)    = {larg,   long, 0, h};\n"
+        << "Point(4)    = {larg/2, long, 0, h};\n"
+        << "Point(5)    = {0,      long, 0, h};\n"
         << "\n"
 
         << "Line(1) = {1, 2};\n"
@@ -67,7 +107,10 @@ int main(int argc,char* argv[])
             _desc= createGMSH()
             );
     auto modele=init_modele();
-    auto souffle= expr<FEELPP_DIM,1>("{1,0}")
+
+    std::ostringstream ostr_souffle;
+    ostr_souffle << "{" << doption("Fluid.debit") << ",0}";
+    auto souffle= expr<FEELPP_DIM,1>(ostr_souffle.str());
 
     NavierStokes fluid;
     fluid.init(mesh,modele);
