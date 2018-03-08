@@ -648,8 +648,8 @@ void Projet::affiche_parametre()
     if( (m_modele == modele2) || (m_modele == modele3) )
         Feel::cout
             << "\n\t|== FLUID PARAMETER ================== "
-            << "\n\t|rho    : " << doption("Air.rho") << " kg/m^3"
-            << "\n\t|mu     : " << doption("Air.mu") << " kg/m/s";
+            << "\n\t|rho    : " << doption("Fluid.rho") << " kg/m^3"
+            << "\n\t|mu     : " << doption("Fluid.mu") << " kg/m/s";
     Feel::cout
         << "\n\t|===================================== "
         << "\n\t|Tamb   : " << doption("Modele.Tamb") << " K"

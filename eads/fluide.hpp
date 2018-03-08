@@ -14,8 +14,10 @@
 #include "md_commun.hpp"
 //#include "commun.hpp"
 
-#define MAX_LOOP_NAVIER 10
-#define MIN_ERROR_NAVIER 1e-6
+#define MAX_LOOP_NAVIER 100
+#define MAX_ERROR_NAVIER 1e5
+#define MIN_ERROR_NAVIER 1e-8
+#define MIN_ERROR_PICARD 1e-3
 
 using namespace Feel;
 using namespace vf;
@@ -125,7 +127,7 @@ class NavierStokes
         void run_stokes(myexpr_type flow);
 
     template<typename myexpr_type>
-        double run_navier(myexpr_type flow);
+        double run_navier(myexpr_type flow,bool newton=false);
 
 
 
@@ -149,8 +151,8 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
     m_fluidPrec= Vph->element();// fonction servant a stocker l'etat precedent
 
     // parametre du fluide
-    m_mu= doption("Air.mu");
-    m_rho= doption("Air.rho");
+    m_mu= doption("Fluid.mu");
+    m_rho= doption("Fluid.rho");
 
     m_fluidPrec.element<0>().on(
             _range= elements(m_mesh), 
@@ -299,7 +301,7 @@ void NavierStokes::run_stokes(myexpr_type flow)
 
 
     template<typename myexpr_type>
-double NavierStokes::run_navier(myexpr_type flow)
+double NavierStokes::run_navier(myexpr_type flow, bool newton)
 {
     tic();
     auto v= m_fluid.element<0>();
@@ -316,18 +318,29 @@ double NavierStokes::run_navier(myexpr_type flow)
 
 
     // terme d'auto-convection
-    //auto autoconv= inner(gradt(u)*idv(u_tmp)+gradv(u_tmp)*idt(u),id(v)); 
-    auto autoconv= inner(gradt(u)*idv(u_tmp),id(v)); 
-    //auto autoconv_lin= inner(gradv(u_tmp)*idv(u_tmp),id(v)); 
+    if(! newton)
+    {
+        auto autoconv= inner(gradt(u)*idv(u_tmp),id(v)); 
 
-    bilinear+= integrate(
-            _range= elements(m_mesh), 
-            _expr= m_rho * autoconv//m_rho * autoconv * id(v)
-            );
-    //linear+= integrate(
-    //        _range= elements(m_mesh), 
-    //        _expr= m_rho * autoconv_lin//m_rho * autoconv * id(v)
-    //        );
+        bilinear+= integrate(
+                _range= elements(m_mesh), 
+                _expr= m_rho * autoconv//m_rho * autoconv * id(v)
+                );
+    }
+    else
+    {
+        auto bil_conv=inner(gradt(u)*idv(u_tmp)+gradv(u_tmp)*idt(u),id(v));
+        auto lin_conv= inner(gradv(u_tmp)*idv(u_tmp),id(v));
+
+        bilinear+= integrate(
+                _range=elements(m_mesh),
+                _expr=m_rho*bil_conv
+                );
+        linear+= integrate(
+                _range= elements(m_mesh),
+                _expr= m_rho*lin_conv
+                );
+    }
 
 
     //condition au bord
@@ -379,13 +392,18 @@ void NavierStokes::run(myexpr_type flow)
         bool est_non_fini= true;
         double error;
         m_fluidt=m_fluidPrec;
-        
+
         for(int i= 0;(i<MAX_LOOP_NAVIER) && est_non_fini;i++)
         {
-            error=run_navier(flow);
+            error=run_navier(
+                    flow, 
+                    (error<MIN_ERROR_PICARD)
+                    );
             if(error<MIN_ERROR_NAVIER)
                 est_non_fini=false;
-            Feel::cout << i << ": erreur= " << error << "\n";
+            Feel::cout << std::setw(4) << i << ": erreur= " << error << "\n";
+            CHECK(error>MAX_ERROR_NAVIER) << "la difference est trop importante\n";
+                
         }
     }
 
@@ -398,7 +416,7 @@ void NavierStokes::run(myexpr_type flow)
     p_tmp.on(
             _range= elements(m_mesh),
             _expr= idv(p_tmp)-p_mean);
-    
+
 
     //Feel::cout << "la vitesse moyenne est \n"<< v_mean << "\n";
 
