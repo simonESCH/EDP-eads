@@ -14,10 +14,10 @@
 #include "md_commun.hpp"
 //#include "commun.hpp"
 
-#define MAX_LOOP_NAVIER 100
+#define MAX_LOOP_NAVIER 200
 #define MAX_ERROR_NAVIER 1e5
 #define MIN_ERROR_NAVIER 1e-8
-#define MIN_ERROR_PICARD 1e-3
+#define MIN_ERROR_PICARD 1//e-1
 
 using namespace Feel;
 using namespace vf;
@@ -307,6 +307,7 @@ double NavierStokes::run_navier(myexpr_type flow, bool newton)
     auto v= m_fluid.element<0>();
     auto u= m_fluidt.element<0>();// terme temporaire pour faire la difference
     auto u_tmp= m_fluid.element<0>();
+    
     //u.on(_range=elements(m_mesh), _expr= zero<FEELPP_DIM,1>());
 
     // re... du systeme
@@ -370,7 +371,8 @@ double NavierStokes::run_navier(myexpr_type flow, bool newton)
             _expr= idv(u_tmp)-idv(u)
             );
     // remplacement de la variabla temporaire pa la solution
-    u_tmp= u;
+    //u_tmp= u;
+    m_fluid=m_fluidt;
     toc("run_navier");
     return error;
 }
@@ -393,7 +395,8 @@ void NavierStokes::run(myexpr_type flow)
         double error;
         m_fluidt=m_fluidPrec;
 
-        for(int i= 0;(i<MAX_LOOP_NAVIER) && est_non_fini;i++)
+        int i;
+        for(i= 0;(i<MAX_LOOP_NAVIER) && est_non_fini;i++)
         {
             error=run_navier(
                     flow, 
@@ -401,21 +404,24 @@ void NavierStokes::run(myexpr_type flow)
                     );
             if(error<MIN_ERROR_NAVIER)
                 est_non_fini=false;
+            CHECK(error<MAX_ERROR_NAVIER) 
+                << "la difference est trop importante\n"
+                << "erreur : " << error <<"\n" ;
+            
             Feel::cout << std::setw(4) << i << ": erreur= " << error << "\n";
-            CHECK(error>MAX_ERROR_NAVIER) << "la difference est trop importante\n";
-                
         }
+        CHECK(i<MAX_LOOP_NAVIER) << "le nombre d'iteration excede le nombre d'iteration autorisee\n";
     }
 
     auto p_tmp= m_fluid.element<1>();
-    double p_mean= mean(
-            _range=elements(m_mesh),
-            _expr= idv(p_tmp)
-            )(0,0);
+    //double p_mean= mean(
+    //        _range=elements(m_mesh),
+    //        _expr= idv(p_tmp)
+    //        )(0,0);
 
-    p_tmp.on(
-            _range= elements(m_mesh),
-            _expr= idv(p_tmp)-p_mean);
+    //p_tmp.on(
+    //        _range= elements(m_mesh),
+    //        _expr= idv(p_tmp)-p_mean);
 
 
     //Feel::cout << "la vitesse moyenne est \n"<< v_mean << "\n";

@@ -64,7 +64,7 @@ makeOptions()
         ("Modele.modele", po::value< std::string>()->default_value("modele0"), 
          "choix du Modele")
 
-        ("Air.D", po::value<std::string>()->default_value("1e3"), 
+        ("Fluid.D", po::value<std::string>()->default_value("1e-3"), 
          "power of the air flow")
         ("Modele.epsilon", po::value<double>()->default_value(1), 
          "epsilon de GaLS")
@@ -100,7 +100,7 @@ makeOptions()
          "temps de la simulation")
 
 #endif
-        ("Exporter.save", po::value< std::string>()->default_value("Solve"), 
+        ("Exporter.save", po::value< std::string>()->default_value(""), 
          "nom du fichier .case")
         //("Exporter.load", po::value< std::string>()->default_value(""), 
         // "chemin de l'approximation fine")
@@ -174,7 +174,7 @@ Modele_type init_modele()
 std::string init_edge_in()
 {
     // recupere la force du debit d'air
-    std::string D= soption(_name="Air.D");
+    std::string D= soption(_name="Fluid.D");
     size_t n_d= D.find(":t");
 
     // recuperation des longueurs

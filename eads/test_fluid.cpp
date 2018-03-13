@@ -118,7 +118,7 @@ int main(int argc,char* argv[])
     toc("init mesh");
 
     std::ostringstream ostr_exp;
-    ostr_exp << soption("Exporter.save") << "_" << soption("Modele.modele");
+    ostr_exp << soption("Exporter.save") << "_" << soption("Modele.modele") << "_" << boption("Time.time");
     auto exp= exporter(_mesh=mesh, _prefix="test_fluid", _name=ostr_exp.str());
 
     auto modele=init_modele();
@@ -150,7 +150,7 @@ int main(int argc,char* argv[])
         {
             tic();
             souffle.setParameterValues({{"t",t}});
-            Feel::cout << "marqueur 1\n";
+            //Feel::cout << "marqueur 1\n";
             fluid.run(souffle);
             int momentsave=(int)(t/dt);
             if( cpt_save%time_save == 0 )

@@ -67,7 +67,7 @@ Physical Line("in1") = {15};//condition of dirichlet: T=T0, u_a=f_entre
 Physical Line("in2") = {16};//condition of dirichlet: T=T0, u_a=f_entre
 Physical Line("out") = {18};//condition of Robin
 //Physical Line("wall") = {17};// paroi du conduit d'areation
-Physical Line("borderFluid") = {2,9,10,11,4,12,13,14,6,17};// paroi du conduit d'areation interieur
+Physical Line("borderfluid") = {2,9,10,11,4,12,13,14,6,17};// paroi du conduit d'areation interieur
 
 //______physical-surface_______________________________
 Physical Surface("PCB") = {100};//motherboard PCB
