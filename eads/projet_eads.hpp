@@ -357,8 +357,9 @@ void Projet::affiche_sortie()
     {
         std::cout << "contenue du fichier ...\n" << m_sortie.str() << "\n";
 
-
-        std::fstream file("heat_evolution.dat", std::ios::out|std::ios::trunc);
+        std::ostringstream ostr_sortie;
+        ostr_sortie << soption("Modele.fileHeat") << "_" << soption("Modele.modele");
+        std::fstream file(ostr_sortie.str(), std::ios::out|std::ios::trunc);
         if(file)
         {
             std::cout << "the evolution of the heat is in the file :"

@@ -75,6 +75,8 @@ makeOptions()
         // "pas de temps")
         ("Modele.GaLS", po::value<bool>()->default_value( false ), 
          "activation de la stabilisation GaLS")
+        ("Modele.fileHeat", po::value<std::string>()->default_value("HeatEvolution"),
+        "name of the file with the value of the control parameter over time")
 #if 1
         ("Geo.ePCB", po::value<double>()->default_value(2e-3), 
          "thickness of the print circuit board")

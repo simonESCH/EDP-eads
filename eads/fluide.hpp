@@ -15,9 +15,9 @@
 //#include "commun.hpp"
 
 #define MAX_LOOP_NAVIER 200
-#define MAX_ERROR_NAVIER 1e5
+#define MAX_ERROR_NEWTON 1e5
 #define MIN_ERROR_NAVIER 1e-8
-#define MIN_ERROR_PICARD 1//e-1
+#define MIN_ERROR_PICARD 1e-3
 
 using namespace Feel;
 using namespace vf;
@@ -392,7 +392,7 @@ void NavierStokes::run(myexpr_type flow)
     {
         init_matrix();
         bool est_non_fini= true;
-        double error;
+        double error=MIN_ERROR_PICARD+1;
         m_fluidt=m_fluidPrec;
 
         int i;
@@ -404,7 +404,7 @@ void NavierStokes::run(myexpr_type flow)
                     );
             if(error<MIN_ERROR_NAVIER)
                 est_non_fini=false;
-            CHECK(error<MAX_ERROR_NAVIER) 
+            CHECK(error<MAX_ERROR_NEWTON) 
                 << "la difference est trop importante\n"
                 << "erreur : " << error <<"\n" ;
             
