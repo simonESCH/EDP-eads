@@ -39,6 +39,8 @@ class Projet
     Modele_type m_modele;
     std::string m_poiseuille;
     std::ostringstream m_sortie;
+    int m_nbSave=0;
+    bool is_save(double t,double t_save, double dt);
 
 
     public:
@@ -56,11 +58,12 @@ class Projet
     //void run_dynamic_no_fluid();
 
 
-};
+};// classe Projet
 
 
 
-
+/// \fn name_export
+// petite fonction donnant un nom a l'export
 std::string name_export()
 {
     std::ostringstream ostr_export;
@@ -77,13 +80,15 @@ std::string name_export()
     return ostr_export.str();
 }
 
+
+// constructeur
 Projet::Projet():m_heat(), m_ns(), m_sortie()
 {
     Feel::cout << "initialisation\n";
 
     tic();
-    m_modele= init_modele();
-    m_poiseuille= init_edge_in();
+    m_modele= init_modele(soption("Modele.modele"));
+    m_poiseuille= init_edge_in(m_modele);
 
     //if( (m_modele == modele3) && !boption("Time.time") )
     //{
@@ -195,8 +200,18 @@ void Projet::run_static()
 std::string timeT(double t)
 {
     std::ostringstream ostr;
-    ostr << "time : " << std::setw(7) << t;
+    ostr << "time: " << std::setw(6) << t << "s";
     return ostr.str();
+}
+
+bool Projet::is_save(double t,double t_save, double dt)
+{
+    if(t+dt>t_save*m_nbSave)
+        {
+            m_nbSave++;
+            return true;
+        }
+        return false;
 }
 
 
@@ -207,17 +222,14 @@ void Projet::run_dynamic()
     double dt= doption("Time.dt");
     double Tfinal= doption("Time.Tfinal");
 
-    int fin=(int)(Tfinal/dt);
-    int Tsave=(int)(doption("Time.save")/dt);
 
     switch(m_modele)
     {
         case modele0://pas de refroidissement
 
-            for(int it= 0; it<fin; ++it)
+            for(double t= 0; t<Tfinal; t+=dt)
             {
                 tic();
-                double t=it*dt;
 
                 // reactualisation des parametres dépendant du temps
                 Q.setParameterValues({{"t", t}});
@@ -227,7 +239,7 @@ void Projet::run_dynamic()
 
 
                 // recuperation des donnée
-                if(it%Tsave == 0) 
+                if(is_save(t,doption("Time.save"),dt)) 
                     add_export(t);
                 add_sortie(t);
 
@@ -241,12 +253,11 @@ void Projet::run_dynamic()
         case modele1:// flux d'air fixe avec un profile de Poisseuille
             {
                 auto beta= expr<FEELPP_DIM, 1>(m_poiseuille);
-                for(int it=0;it<fin;++it)
+                for(double t=0; t<Tfinal;t+=dt)
                 {
                     tic();
 
                     // reactualisation des parametres dépendant du temps
-                    double t=it*dt;
                     Q.setParameterValues({{"t", t}});
                     beta.setParameterValues({{"t", t}});
                     m_heat.betaUpdate(beta);
@@ -255,7 +266,7 @@ void Projet::run_dynamic()
                     m_heat.run(Q);
 
                     // recuperation des donnée
-                    if(it%Tsave == 0)  
+                if(is_save(t,doption("Time.save"),dt)) 
                         add_export(t);
                     add_sortie(t);
 
@@ -274,12 +285,11 @@ void Projet::run_dynamic()
                         _imageSpace= m_heat.beta.functionSpace()
                         );
 
-                for(int it=0; it<fin; ++it)
+                for(double t=0; t<Tfinal; t+=dt)
                 {
                     tic();
 
                     // reactualisation des parametre dépendant du temps
-                    double t=it*dt;
                     Q.setParameterValues({{"t",t}});
                     beta.setParameterValues({{"t",t}});
 
@@ -291,7 +301,7 @@ void Projet::run_dynamic()
                     m_heat.run(Q);
 
                     //recuperation des données
-                    if(it%Tsave == 0)
+                    if(is_save(t,doption("Time.save"),dt))
                         add_export(t);
                     add_sortie(t);
 
@@ -406,7 +416,10 @@ void Projet::affiche_parametre()
     if(boption("Time.time"))
         Feel::cout
             << "\n\t|Tmax   : " << doption("Time.Tfinal") << " sec"
-            << "\n\t|dt     : " << doption("Time.dt") << " sec";
+            << "\n\t|dt     : " << doption("Time.dt") << " sec"
+            << "\n\t|Tsave  : " << doption("Time.save") << " sec\t soit "
+            << (int)(doption("Time.Tfinal")/doption("Time.save")) << "images";
+            
     Feel::cout
         << "\n\t|===================================== "
         << "\n\t|stab   : " << std::boolalpha << boption("Modele.GaLS")

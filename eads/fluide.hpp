@@ -14,10 +14,11 @@
 #include "md_commun.hpp"
 //#include "commun.hpp"
 
-#define MAX_LOOP_NAVIER 200
-#define MAX_ERROR_NEWTON 1e5
-#define MIN_ERROR_NAVIER 1e-8
-#define MIN_ERROR_PICARD 1e-3
+#define MAX_LOOP_NAVIER 50
+#define MAX_ERROR_NEWTON 1e4
+#define MIN_ERROR_NAVIER 1e-10
+#define MIN_ERROR_PICARD 1e-2
+#define NB_PICARD 2
 
 using namespace Feel;
 using namespace vf;
@@ -89,9 +90,10 @@ class NavierStokes
 
     // function of navier stokes
     space_fluid_ptrtype Vph;
-    element_fluid_type m_fluid;
-    element_fluid_type m_fluidt;
-    element_fluid_type m_fluidPrec;
+
+    element_fluid_type m_fluid;// element contenant le resultat de la solution
+    element_fluid_type m_fluidt;// element servant de variable temporaire
+    element_fluid_type m_fluidPrec;// element servant a garder l'instant t-dt
 
     //m_backend
     backend_ptrtype m_backend;
@@ -163,13 +165,13 @@ void NavierStokes::init(mesh_ptrtype mesh, Modele_type mod)
     //Feel::cout << "marqueur 1\n";    
     matrix= m_backend->newMatrix(Vph, Vph);
     //Feel::cout << "marqueur 1.5\n";    
-    
+
     vector= m_backend->newVector(Vph);
 
     //Feel::cout << "marqueur 2\n";    
     matrix_static= m_backend->newMatrix(Vph, Vph);
     vector_static= m_backend->newVector(Vph);
-    
+
     //Feel::cout << "marqueur 3\n";    
     // mise en place de la matrice matrix_static
     init_matrix();
@@ -198,7 +200,7 @@ void NavierStokes::init_matrix()
     auto q= m_fluid.template element<1>();
     auto p= m_fluid.template element<1>();
     auto elmts= elements(m_mesh);
-    
+
     auto deft= sym(gradt(u));
     auto Id= eye<FEELPP_DIM,FEELPP_DIM>();
     auto sigmat=-idt(p)*Id+m_mu*gradt(u);
@@ -232,7 +234,7 @@ void NavierStokes::reset_dynamic()
 {
     matrix->zero();
     matrix->addMatrix(1,matrix_static);
-    
+
     vector->zero();
     vector= vector_static;
 }
@@ -273,19 +275,40 @@ void NavierStokes::run_stokes(myexpr_type flow)
     if(boption("Time.time"))
         build_time_linear();
 
+#if TEST_CONVERGENCE
+    auto expr_bord= expr<FEELPP_DIM, 1>(soption("Test.solution_velocity"));
+    auto expr_force= expr<FEELPP_DIM, 1>(soption("Test.f"));
+    auto expr_neumann= expr<FEELPP_DIM, 1>(soption("Test.neumann"));
 
-    // condition au bord
-    bilinear+= on(// condition a l'entree d'air :dirichlet
-            _range= markedfaces(m_mesh, {"in1", "in2"}), 
+    linear+= integrate(// parametre de force externe
+            _range= elements(m_mesh),
+            _expr= inner(expr_force, id(v))
+            );
+    linear+= integrate(// condition force de neuman
+            _range= markedfaces(m_mesh,"out"),
+            _expr= inner(expr_neumann, id(v))
+            );
+    bilinear+= on(//2
+            _range= markedfaces(m_mesh, "in"), 
+            _rhs= linear, 
+            _element= u, 
+            _expr= expr_bord
+            );
+#else
+    auto expr_bord= zero<FEELPP_DIM, 1>();
+
+    bilinear+= on(//2
+            _range= markedfaces(m_mesh, "in"), 
             _rhs= linear, 
             _element= u, 
             _expr= flow
             );
+#endif
     bilinear+= on(// condition sur les parois
             _range= markedfaces(m_mesh, "borderfluid"), 
             _rhs= linear, 
             _element= u, 
-            _expr= zero<FEELPP_DIM, 1>()
+            _expr= expr_bord
             );
 
     // resolution
@@ -306,8 +329,9 @@ double NavierStokes::run_navier(myexpr_type flow, bool newton)
     tic();
     auto v= m_fluid.element<0>();
     auto u= m_fluidt.element<0>();// terme temporaire pour faire la difference
+    auto p= m_fluidt.element<1>();
     auto u_tmp= m_fluid.element<0>();
-    
+
     //u.on(_range=elements(m_mesh), _expr= zero<FEELPP_DIM,1>());
 
     // re... du systeme
@@ -345,17 +369,40 @@ double NavierStokes::run_navier(myexpr_type flow, bool newton)
 
 
     //condition au bord
+#if TEST_CONVERGENCE
+    auto expr_bord= expr<FEELPP_DIM, 1>(soption("Test.solution_velocity"));
+    auto expr_force= expr<FEELPP_DIM, 1>(soption("Test.f"));
+    auto expr_neumann= expr<FEELPP_DIM, 1>(soption("Test.neumann"));
+
+    linear+= integrate(// parametre de force externe
+            _range= elements(m_mesh),
+            _expr= inner(expr_force, id(v))
+            );
+    linear+= integrate(// condition force de neuman
+            _range= markedfaces(m_mesh,"out"),
+            _expr= inner(expr_neumann, id(v))
+            );
     bilinear+= on(//2
-            _range= markedfaces(m_mesh, {"in1", "in2"}), 
+            _range= markedfaces(m_mesh, "in"), 
+            _rhs= linear, 
+            _element= u, 
+            _expr= expr_bord
+            );
+#else
+    auto expr_bord= zero<FEELPP_DIM, 1>();
+
+    bilinear+= on(//2
+            _range= markedfaces(m_mesh, "in"), 
             _rhs= linear, 
             _element= u, 
             _expr= flow
             );
+#endif
     bilinear+= on(
             _range= markedfaces(m_mesh, "borderfluid"), 
             _rhs= linear, 
             _element= u, 
-            _expr= zero<FEELPP_DIM, 1>()
+            _expr= expr_bord
             );
 
     // resolution
@@ -370,7 +417,7 @@ double NavierStokes::run_navier(myexpr_type flow, bool newton)
             _range= elements(m_mesh), 
             _expr= idv(u_tmp)-idv(u)
             );
-    // remplacement de la variabla temporaire pa la solution
+    // remplacement de la variable temporaire par la solution approche
     //u_tmp= u;
     m_fluid=m_fluidt;
     toc("run_navier");
@@ -392,39 +439,31 @@ void NavierStokes::run(myexpr_type flow)
     {
         init_matrix();
         bool est_non_fini= true;
-        double error=MIN_ERROR_PICARD+1;
+        double error;//=MIN_ERROR_PICARD+1;
         m_fluidt=m_fluidPrec;
 
         int i;
+        int halt=0;
         for(i= 0;(i<MAX_LOOP_NAVIER) && est_non_fini;i++)
         {
             error=run_navier(
                     flow, 
-                    (error<MIN_ERROR_PICARD)
+                    (i>NB_PICARD)//(error<doption("gmsh.hsize"))//(error<MIN_ERROR_PICARD)//(i>=NB_PICARD)
                     );
-            if(error<MIN_ERROR_NAVIER)
+            if((error<MIN_ERROR_NAVIER)||halt==3)
                 est_non_fini=false;
-            CHECK(error<MAX_ERROR_NEWTON) 
+            //halt+=(int)(error<MIN_ERROR_PICARD);
+
+            CHECK((error<MAX_ERROR_NEWTON)||(i==0)) 
                 << "la difference est trop importante\n"
                 << "erreur : " << error <<"\n" ;
-            
+
             Feel::cout << std::setw(4) << i << ": erreur= " << error << "\n";
         }
         CHECK(i<MAX_LOOP_NAVIER) << "le nombre d'iteration excede le nombre d'iteration autorisee\n";
     }
 
     auto p_tmp= m_fluid.element<1>();
-    //double p_mean= mean(
-    //        _range=elements(m_mesh),
-    //        _expr= idv(p_tmp)
-    //        )(0,0);
-
-    //p_tmp.on(
-    //        _range= elements(m_mesh),
-    //        _expr= idv(p_tmp)-p_mean);
-
-
-    //Feel::cout << "la vitesse moyenne est \n"<< v_mean << "\n";
 
     m_fluidPrec.zero();
     m_fluidPrec= m_fluid;

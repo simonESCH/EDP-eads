@@ -164,7 +164,7 @@ void Heat::init(mesh_ptrtype theMesh, Modele_type mod)
     this->m_mesh= theMesh;
     init_param();
     init_heat();
-    toc("init_heat");
+    toc("HEAT: init");
 }
 
 
@@ -196,7 +196,7 @@ void Heat::init_param()
     m_rc.on(_range=markedelements(m_mesh, "IC1"), _expr= cst(doption("Proc.rc")));
     m_rc.on(_range=markedelements(m_mesh, "IC2"), _expr= cst(doption("Proc.rc")));
     m_rc.on(_range=markedelements(m_mesh, "AIR"), _expr= cst(doption("Air.rc"))); 
-    toc("init P0   ");
+    toc("init P0");
 }
 
 
@@ -333,7 +333,7 @@ void Heat::betaUpdate(myexpr_type conv)
     template<typename myexpr_type>
 void Heat::build_heat_stab(myexpr_type Q)
 {
-    tic();
+    //tic();
     // forme bilineaire de notre probleme
     auto bilinear=form2(_test= Th, _trial= Th, _matrix= matrix);
     auto linear=form1(_test= Th, _vector= vector);
@@ -355,7 +355,7 @@ void Heat::build_heat_stab(myexpr_type Q)
             _range= markedelements(m_mesh, {"IC1", "IC2"}), 
             _expr= delta*L*f
             );
-    toc("stabilisation");
+    //toc("stabilisation");
 }
 
 
@@ -377,7 +377,7 @@ void Heat::run(myexpr_type Q)
     auto linear= form1(_test= Th, _vector= vector);
     auto bilinear= form2(_test= Th, _trial= Th, _matrix= matrix);
 
-    tic();
+    //tic();
     linear+= integrate(
             _range= markedelements(m_mesh, {"IC1", "IC2"}), 
             _expr= Q*id(u)
@@ -414,24 +414,24 @@ void Heat::run(myexpr_type Q)
 
     // condition au bord
     bilinear+=on( // temperature du flot d'entree
-            _range= markedfaces(m_mesh, {"in1", "in2"}), 
+            _range= markedfaces(m_mesh, "in"), 
             _rhs= linear, 
             _element= ut, 
             _expr= cst(doption("Modele.Tamb"))
             );
-    toc("  build  "); 
+    //toc("HEAT: build"); 
 
-    tic();
+    //tic();
     m_backend->solve(
             _solution= u, 
             _matrix=matrix, 
             _rhs=vector
             );
-    toc("  solve  ");
+    //toc("HEAT: solve");
 
     if(boption("Time.time"))
         uPrec=u;
-    toc("run HEAT");
+    toc("HEAT: solve");
 }
 
 
