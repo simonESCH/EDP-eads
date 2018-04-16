@@ -52,7 +52,9 @@ int main(int argc, char**argv )
     double time_mesh = toc("loadMesh");
 
     tic();
-    auto Vh = Pch<1>( mesh );
+    
+    auto Vh =Pch<K_LAPLACIAN_CSMI>(mesh);
+
     auto u = Vh->element("u");
     auto mu = expr(soption(_name="functions.mu")); // diffusion term
     auto f = expr( soption(_name="functions.f"), "f" );
@@ -139,7 +141,7 @@ int main(int argc, char**argv )
     if(Environment::isMasterRank())// fait si c'est le processus 0
     {
         std::ostringstream ostr;
-        ostr << "/data/atlas_home/atlas_eschbach/feel/qs_laplacian/resultat/tableau/" << soption("");
+        ostr << "/data/atlas_home/atlas_eschbach/feel/qs_laplacian/resultat/tableau/" << soption("") << ".csv";
         std::ofstream fich(ostr.str(), ios::out | ios::app);
         if(fich)
         {
